@@ -1,0 +1,146 @@
+---
+title: "Excel Import"
+description: "Upload an Excel workbook to validate its structure and prepare connection data for import into ICP System."
+---
+
+<Warning>
+  The Excel Import feature is restricted to **ADMIN** and **OPERADOR** roles. If you have the NOC role, the "Importación Excel" menu item will not appear in the sidebar.
+</Warning>
+
+## Overview
+
+The Import module at `/importacion` lets you upload an `.xlsx` or `.xls` workbook and verify that it contains the columns ICP System requires before ingesting the data. The system scans every sheet in the workbook and identifies the first one that contains all required columns.
+
+## Workflow
+
+<Steps>
+  <Step title="Select a file">
+    Click **Seleccionar archivo**. A file-picker dialog opens filtered to `.xlsx` and `.xls` files. Selecting a file clears any previous results or errors from the page.
+  </Step>
+  <Step title="Upload and validate">
+    After a file appears on the page, click **Cargar y Listar Columnas**. The button is disabled until a file is selected. A spinner replaces the button label while the upload is in progress.
+  </Step>
+  <Step title="Sheet scan">
+    The backend receives the workbook and returns every sheet's column list. The frontend then iterates through the sheets and checks whether each one contains every column in the required list.
+  </Step>
+  <Step title="Result">
+    - If a valid sheet is found, the page displays that sheet's name and renders a scrollable table listing its columns with an index number next to each one.
+    - If no sheet passes validation, an error banner appears: *"No se encontró ninguna hoja con todas las columnas requeridas"*.
+  </Step>
+</Steps>
+
+<Tip>
+  Only the **first** sheet that satisfies all required columns is processed. If your workbook has multiple sheets that could match, make sure the intended sheet appears first in tab order.
+</Tip>
+
+## Required Columns
+
+Your workbook must contain a sheet with **all** of the following column names. Column names are matched exactly (case-sensitive, including accented characters):
+
+| # | Column Name              |
+|---|--------------------------|
+| 1 | `CID`                    |
+| 2 | `ID PROVEEDOR`           |
+| 3 | `PROVEEDOR`              |
+| 4 | `CONDICION`              |
+| 5 | `MODALIDAD`              |
+| 6 | `DESTINO`                |
+| 7 | `CAPACIDAD COMPRADA`     |
+| 8 | `OBSERVACIÓN`            |
+| 9 | `CAPACIDAD VENDIDA`      |
+|10 | `OBSERVACION DE VENTA`   |
+|11 | `CAPACIDAD ACTUAL`       |
+
+<Warning>
+  Column names must match exactly, including spaces and accent marks. `OBSERVACIÓN` (with accent) and `OBSERVACION` (without) are treated as different values.
+</Warning>
+
+## API Endpoint
+
+The page calls the import service via a `multipart/form-data` POST:
+
+```bash
+POST /v1/importacion/listar-columnas
+Content-Type: multipart/form-data
+
+file=<your .xlsx or .xls file>
+```
+
+### Response format
+
+The backend returns a dictionary keyed by sheet name. Each value is an array of `ColumnaExcel` objects:
+
+```typescript
+type ColumnaExcel = {
+  nombre: string;       // Column name as it appears in the sheet header row
+  tipo?:  string | null;// Optional data type hint from the backend
+  nulos?: number | null;// Optional null-value count from the backend
+};
+
+// Response shape
+type ListarColumnasResponse = Record<string, ColumnaExcel[]>;
+```
+
+**Example response:**
+
+```json
+{
+  "DATOS ENLACES": [
+    { "nombre": "CID" },
+    { "nombre": "ID PROVEEDOR" },
+    { "nombre": "PROVEEDOR" },
+    { "nombre": "CONDICION" },
+    { "nombre": "MODALIDAD" },
+    { "nombre": "DESTINO" },
+    { "nombre": "CAPACIDAD COMPRADA" },
+    { "nombre": "OBSERVACIÓN" },
+    { "nombre": "CAPACIDAD VENDIDA" },
+    { "nombre": "OBSERVACION DE VENTA" },
+    { "nombre": "CAPACIDAD ACTUAL" }
+  ],
+  "Resumen": [
+    { "nombre": "Mes" },
+    { "nombre": "Total" }
+  ]
+}
+```
+
+In this example, `DATOS ENLACES` contains all required columns and would be selected as the valid sheet; `Resumen` would be skipped.
+
+## Row Data Endpoint
+
+A second endpoint returns the actual row data from the valid sheet after validation:
+
+```bash
+POST /v1/importacion/listar-hoja-datos
+Content-Type: multipart/form-data
+
+file=<your .xlsx or .xls file>
+```
+
+Each row in the response maps directly to the `FilaHoja` type:
+
+```typescript
+type FilaHoja = {
+  CID:                    string;
+  "ID PROVEEDOR":         string;
+  PROVEEDOR:              string;
+  CONDICION:              string;
+  MODALIDAD:              string;
+  DESTINO:                string;
+  "CAPACIDAD COMPRADA":   string;
+  OBSERVACIÓN:            string;
+  "CAPACIDAD VENDIDA":    string;
+  "OBSERVACION DE VENTA": string;
+  "CAPACIDAD ACTUAL":     string;
+};
+```
+
+The response wraps the rows in an envelope:
+
+```typescript
+type HojaDatosResponse = {
+  ok:   boolean;
+  data: FilaHoja[];
+};
+```

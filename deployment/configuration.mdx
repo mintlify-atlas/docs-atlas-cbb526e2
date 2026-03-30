@@ -1,0 +1,132 @@
+---
+title: "Configuration"
+description: "Environment variables, API client settings, and token storage for the ICP System frontend."
+---
+
+## Environment variables
+
+All runtime configuration is supplied through a `.env` file located at `red-dashboard/.env`. Vite exposes any variable prefixed with `VITE_` to the browser bundle at build time.
+
+### Sample `.env` file
+
+```bash
+# red-dashboard/.env
+
+# Development (default)
+VITE_API_BASE_URL=http://127.0.0.1:8000/api
+
+# Production — uncomment and set before building
+# VITE_API_BASE_URL=https://misidev.space/api
+```
+
+### Variable reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | Yes | `http://127.0.0.1:8000/api` | Base URL of the backend REST API, including the `/api` path segment |
+
+<Note>
+  In production, set `VITE_API_BASE_URL` to the full `/api` path of your production host — for example `https://misidev.space/api`. The value is embedded into the compiled bundle at build time, so you must rebuild the app after changing it.
+</Note>
+
+---
+
+## HTTP client settings
+
+All API calls go through a single Axios instance defined in `src/shared/api/http.ts`. The instance is configured with the following options:
+
+```typescript
+// src/shared/api/http.ts
+export const http = axios.create({
+  baseURL: "/api",   // relative — proxied in dev, served from same origin in production
+  timeout: 10000,
+  withCredentials: true,
+});
+```
+
+### `baseURL`
+
+The Axios instance uses a **relative** `baseURL` of `/api` rather than reading `VITE_API_BASE_URL` directly. In development, Vite's dev server proxy forwards `/api/*` requests to `http://127.0.0.1:8000`:
+
+```typescript
+// vite.config.ts
+server: {
+  proxy: {
+    "/api": {
+      target: "http://127.0.0.1:8000",
+      changeOrigin: true,
+    },
+  },
+},
+```
+
+In production, the compiled frontend is expected to be hosted on the same origin as the backend (e.g., `https://misidev.space`), so relative `/api` paths resolve correctly without the proxy.
+
+### `timeout`
+
+Requests are cancelled after **10,000 ms (10 seconds)**. If the backend does not respond within this window, Axios will reject the promise with a timeout error.
+
+### `withCredentials`
+
+Set to `true` to allow the browser to include cookies and other credentials in cross-origin requests. This supports cookie-based session authentication if the backend uses it alongside (or instead of) Bearer tokens.
+
+---
+
+## Request interceptor — Bearer token
+
+Before every request, the interceptor reads the access token from `localStorage` and attaches it as an `Authorization` header:
+
+```typescript
+http.interceptors.request.use((config) => {
+  const token = getAccessToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+```
+
+---
+
+## Response interceptor — automatic logout on 401
+
+If the backend returns a `401 Unauthorized` response, the interceptor clears the stored token and redirects the browser to `/login`:
+
+```typescript
+http.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err?.response?.status === 401) {
+      clearAccessToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
+```
+
+---
+
+## Token storage
+
+The access token returned by the login endpoint is persisted to `localStorage` under the key `access_token`.
+
+```typescript
+const TOKEN_KEY = "access_token";
+
+export function setAccessToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function getAccessToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function clearAccessToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+```
+
+<Warning>
+  Storing tokens in `localStorage` exposes them to any JavaScript running on the page, making the application vulnerable to XSS attacks. If the threat model of your deployment requires stronger security, consider moving token storage to an `HttpOnly` cookie and disabling the `localStorage` helpers. Review your Content Security Policy (CSP) headers as a complementary mitigation.
+</Warning>

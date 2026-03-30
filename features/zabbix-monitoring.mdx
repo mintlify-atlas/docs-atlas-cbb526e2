@@ -1,0 +1,122 @@
+---
+title: "Zabbix Traffic Monitoring"
+description: "Real-time IN/OUT traffic monitoring per network link collected via Zabbix (SNMP/agent), compared against contracted bandwidth with the same four-level risk classification."
+---
+
+## Overview
+
+The **Zabbix - Tráfico por Conexión** page shows live bandwidth consumption for each monitored network link. Unlike the Capacity Dashboard, which tracks statically assigned capacity, this view reflects actual measured traffic from Zabbix — the IN and OUT Mbps peaks polled by SNMP or the Zabbix agent. You can select any row in the grid to view the full IN/OUT trend chart for that link.
+
+<Note>
+Zabbix natively reports interface traffic in **bps** (bits per second). The dashboard divides these values by 1,000,000 to convert them to **Mbps** before display. All fields in `ZbxLink` — `contratadoMbps`, `ultimoInMbps`, `ultimoOutMbps`, `peakInMbps`, `peakOutMbps` — are already in Mbps.
+</Note>
+
+---
+
+## KPI Cards
+
+Four summary cards aggregate across all monitored links.
+
+| Card | Computation | Description |
+|---|---|---|
+| **BW contratado total** | `Σ contratadoMbps` | Sum of contracted bandwidth across all monitored links. |
+| **Peak total** | `Σ max(peakInMbps, peakOutMbps)` | Aggregate worst-direction peak for all links. |
+| **Disponible estimado** | `Σ (contratadoMbps − peakMbps)`, floored at 0 per link | Estimated free capacity based on peak measurements. |
+| **Riesgo** | `(Σ peakMbps / Σ contratadoMbps) × 100` | Global peak-based usage %, with LLENO and CRÍTICO counts as subtitle. |
+
+---
+
+## Risk Classification
+
+The Zabbix page uses the same four-level risk function as the Capacity Dashboard, applied to `usoPct = peakMbps / contratadoMbps × 100`:
+
+| Level | Key | Threshold | Color chip |
+|---|---|---|---|
+| **OK** | `OK` | `usoPct < 70 %` | success (green) |
+| **MEDIO** | `MEDIO` | `70 % ≤ usoPct < 85 %` | info (blue) |
+| **CRÍTICO** | `CRITICO` | `85 % ≤ usoPct < 100 %` | warning (orange) |
+| **LLENO** | `LLENO` | `usoPct ≥ 100 %` | error (red) |
+
+The peak used for risk scoring is `peakMbps = Math.max(peakInMbps, peakOutMbps)` — the worse of the two directions determines the risk level for the link.
+
+---
+
+## Trend Chart (IN/OUT Mbps)
+
+The line chart in the upper-left panel renders the full `trend` time series for the **currently selected** connection. It plots two lines:
+
+- **IN Mbps** — `inMbps` field from each `ZbxTrafficPoint`
+- **OUT Mbps** — `outMbps` field from each `ZbxTrafficPoint`
+
+The chart title updates dynamically to show the selected `conexionId`, `equipo`, `interfaz`, and `contratadoMbps`.
+
+### ZbxTrafficPoint type
+
+```typescript
+type ZbxTrafficPoint = {
+  ts:       string;  // timestamp label, e.g. "09:00"
+  inMbps:   number;  // ingress traffic in Mbps
+  outMbps:  number;  // egress traffic in Mbps
+};
+```
+
+---
+
+## Detail Panel
+
+The right-side panel shows the statistics for the selected link:
+
+| Field | Description |
+|---|---|
+| **Peak (Mbps)** | `max(peakInMbps, peakOutMbps)` — highest recorded throughput in either direction. |
+| **Disponible estimado** | `max(0, contratadoMbps − peakMbps)` — estimated free capacity. |
+| **Uso %** | `(peakMbps / contratadoMbps) × 100`, capped at 100. Rendered as both a percentage label and a `LinearProgress` bar. |
+| **Riesgo chip** | OK / MEDIO / CRÍTICO / LLENO colored chip. |
+
+---
+
+## Data Grid — Monitored Links
+
+The full table below the chart and detail panel lists every monitored link. Clicking a row updates the trend chart and detail panel for that link. The grid is sorted by `usoPct` descending by default.
+
+| Column | Field | Notes |
+|---|---|---|
+| Conexión | `conexionId` | Matches the `conexionId` in the Capacity Dashboard. |
+| Proveedor | `proveedor` | Upstream provider name (e.g. BITEL, CLARO, TELEFÓNICA). |
+| Equipo | `equipo` | Router or switch hostname (e.g. `edge-lima-01`, `core-peering-02`). |
+| Interfaz | `interfaz` | Physical interface (e.g. `Gi0/0/0`, `xe-0/0/1`, `ae1`). |
+| Contratado | `contratadoMbps` | Contracted bandwidth for this link in Mbps. |
+| Peak (Mbps) | `peakMbps` | `max(peakInMbps, peakOutMbps)`. |
+| Disp. Est. | `disponibleEst` | `max(0, contratadoMbps − peakMbps)`. |
+| Uso | `usoPct` | Progress bar + percentage label. |
+| Riesgo | `riesgoLabel` | Colored MUI chip. |
+| Último dato | `lastClock` | Timestamp of the most recent Zabbix poll, e.g. `"2026-02-19 09:10"`. |
+
+### Row click behaviour
+
+```typescript
+onRowClick={(p) => setSelectedId(Number(p.row.id))}
+```
+
+Clicking any row sets the selected link ID, which re-renders both the trend chart and the detail panel for that link.
+
+---
+
+## ZbxLink type reference
+
+```typescript
+type ZbxLink = {
+  id:              number;
+  conexionId:      number;       // matches capacidad.conexionId
+  proveedor:       string;
+  equipo:          string;       // router / switch hostname
+  interfaz:        string;       // Gi0/0/0, xe-0/0/1, ae1, etc.
+  contratadoMbps:  number;
+  ultimoInMbps:    number;       // last polled ingress (Mbps)
+  ultimoOutMbps:   number;       // last polled egress (Mbps)
+  peakInMbps:      number;
+  peakOutMbps:     number;
+  lastClock:       string;       // "YYYY-MM-DD HH:mm"
+  trend:           ZbxTrafficPoint[];
+};
+```

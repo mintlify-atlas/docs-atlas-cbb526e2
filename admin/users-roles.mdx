@@ -1,0 +1,145 @@
+---
+title: "Users & Roles"
+description: "Manage system users and understand role-based access control in ICP System."
+---
+
+<Warning>
+  The Users page at `/usuarios` is only visible to users with the **ADMIN** role. If you do not have this role, the menu item will not appear in the sidebar.
+</Warning>
+
+## Overview
+
+The user management module lets ADMIN users view and manage all system accounts. Every user in ICP System is assigned one or more roles that determine which modules and actions they can access. Role enforcement is applied both in the navigation (menu items are conditionally rendered) and at the API level.
+
+## The `Usuario` Data Model
+
+Each user record returned by the API has the following shape:
+
+```typescript
+type Usuario = {
+  usuario_id: number;       // Unique numeric ID
+  username:   string;       // Login name
+  email:      string | null;// Contact email — may be null
+  is_active:  number;       // 1 = active, 0 = inactive
+  roles:      string;       // Comma-separated roles, e.g. "ADMIN,NOC"
+};
+```
+
+The `roles` field is stored and transmitted as a single comma-separated string. The UI splits it on `,` to render individual role badges for each user row.
+
+## User List Page (`/usuarios`)
+
+<Warning>
+  This route is restricted to **ADMIN** only. The sidebar conditionally renders the "Usuarios" menu item using `hasRole(roles, "ADMIN")`.
+</Warning>
+
+When you navigate to `/usuarios`, the page fetches all users from the REST API:
+
+```bash
+GET /v1/auth/users
+```
+
+The response has the shape:
+
+```typescript
+type ApiResponse = {
+  ok:    boolean;
+  items: Usuario[];
+};
+```
+
+The page renders a table with the following columns:
+
+| Column    | Description                                              |
+|-----------|----------------------------------------------------------|
+| ID        | `usuario_id` — numeric primary key                      |
+| Usuario   | `username` — the login name, displayed in bold          |
+| Email     | `email` — displays `"-"` if null                        |
+| Roles     | Each role rendered as an individual badge chip          |
+| Estado    | Green **ACTIVO** badge when `is_active === 1`, red **INACTIVO** otherwise |
+| Acciones  | Buttons: Ver, Editar, Reset, Desactivar                 |
+
+From this page you can:
+
+- **Ver** — view the user's details
+- **Editar** — modify the user's information
+- **Reset** — reset the user's password
+- **Desactivar** — deactivate the account (sets `is_active` to `0`)
+
+You can also create a new account by clicking the **+ Nuevo usuario** button in the header.
+
+## Profile Page (`/perfil`)
+
+Every authenticated user — regardless of role — can access their own profile at `/perfil`. The profile page calls:
+
+```bash
+GET /v1/auth/me
+```
+
+The page displays:
+
+- **Avatar** showing the user's initials
+- **Account status** chip (Activo / Inactivo)
+- **Information section**: `usuario_id`, `username`, `email`
+- **Roles section**: each assigned role rendered as a chip
+- **Cerrar sesión** button — clears `access_token` from `localStorage` and redirects to `/login`
+
+If the session has expired or the API call fails, the profile page shows an error alert with options to retry or go to the login page.
+
+## Roles
+
+ICP System defines three roles. A user can hold multiple roles simultaneously; the `roles` string would then be comma-separated (e.g., `"ADMIN,NOC"`).
+
+<CardGroup cols={3}>
+  <Card title="ADMIN" icon="shield-check">
+    Full access to every module, including Users management and Excel Import. The only role that can see and use the `/usuarios` route.
+  </Card>
+  <Card title="OPERADOR" icon="wrench">
+    Access to all operational modules including Excel Import. Cannot access the Users management page.
+  </Card>
+  <Card title="NOC" icon="eye">
+    Read-only access to operational modules. Cannot access Excel Import or Users management.
+  </Card>
+</CardGroup>
+
+### Module Access Matrix
+
+| Module                    | ADMIN | OPERADOR | NOC |
+|---------------------------|:-----:|:--------:|:---:|
+| Perfil (`/perfil`)        | ✓     | ✓        | ✓   |
+| Proveedores               | ✓     | ✓        | ✓   |
+| Equipos Principales       | ✓     | ✓        | ✓   |
+| Enlaces Proveedor         | ✓     | ✓        | ✓   |
+| Nodos                     | ✓     | ✓        | ✓   |
+| Clientes Corporativos     | ✓     | ✓        | ✓   |
+| Servicios Cliente         | ✓     | ✓        | ✓   |
+| Contratos                 | ✓     | ✓        | ✓   |
+| Reportes                  | ✓     | ✓        | ✓   |
+| Importación Excel         | ✓     | ✓        | ✗   |
+| Usuarios (`/usuarios`)    | ✓     | ✗        | ✗   |
+
+## The `hasRole()` Utility
+
+Role checks across the application use a single utility function defined in `src/shared/auth/rbac.ts`:
+
+```typescript
+export function hasRole(
+  userRoles: string[] | undefined,
+  ...allowed: string[]
+): boolean {
+  const roles = new Set(userRoles ?? []);
+  return allowed.some((r) => roles.has(r));
+}
+```
+
+Pass the current user's role array as the first argument, then one or more allowed role strings. The function returns `true` if the user holds **any** of the listed roles.
+
+**Examples used in `AppLayout.tsx`:**
+
+```typescript
+// Only ADMIN can see the Users menu item
+const canSeeUsuarios    = hasRole(roles, "ADMIN");
+
+// ADMIN or OPERADOR can see the Import menu item
+const canSeeImportacion = hasRole(roles, "ADMIN", "OPERADOR");
+```

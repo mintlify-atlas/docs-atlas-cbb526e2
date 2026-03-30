@@ -1,0 +1,294 @@
+---
+title: "Backend API Reference"
+description: "All REST API endpoints consumed by the ICP System frontend, organized by resource."
+---
+
+## Overview
+
+The ICP System frontend communicates with a single backend REST API. Every request is sent through the shared Axios instance in `src/shared/api/http.ts` with the base path `/api`.
+
+<Note>
+  All endpoints (except `POST /v1/auth/login`) require a valid Bearer token. The token is attached automatically by the request interceptor in `http.ts`:
+
+  ```
+  Authorization: Bearer <access_token>
+  ```
+</Note>
+
+### Standard response envelope
+
+Most list and mutation endpoints return a consistent response shape:
+
+```json
+{
+  "ok": true,
+  "message": "Operación exitosa",
+  "count": 42,
+  "items": []
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `ok` | `boolean` | `true` on success, `false` on application-level failure |
+| `message` | `string` (optional) | Human-readable status or error message |
+| `count` | `number` (optional) | Total number of records available (before pagination) |
+| `items` | `array` (optional) | Page of result objects |
+
+### Sample authenticated request
+
+```bash
+curl -X GET "https://misidev.space/api/v1/proveedores/listar?limit=10&offset=0" \
+  -H "Authorization: Bearer <your_access_token>" \
+  -H "Content-Type: application/json"
+```
+
+---
+
+## Endpoints by resource
+
+<AccordionGroup>
+  <Accordion title="Authentication">
+    | Method | Path | Description |
+    |---|---|---|
+    | `POST` | `/v1/auth/login` | Authenticate with `username` and `password`. Returns `{ ok, access_token }`. |
+    | `GET` | `/v1/auth/me` | Return the currently authenticated user's profile and assigned roles. |
+    | `GET` | `/v1/auth/users` | List all registered users. **ADMIN role required.** |
+
+    **Login request body**
+
+    ```json
+    {
+      "username": "admin",
+      "password": "secret"
+    }
+    ```
+
+    **Login response**
+
+    ```json
+    {
+      "ok": true,
+      "access_token": "eyJhbGci..."
+    }
+    ```
+
+    **`/v1/auth/me` response**
+
+    ```json
+    {
+      "ok": true,
+      "user": {
+        "usuario_id": 1,
+        "username": "admin",
+        "email": "admin@example.com",
+        "is_active": true,
+        "roles": ["ADMIN", "NOC"]
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Providers (Proveedores)">
+    | Method | Path | Description |
+    |---|---|---|
+    | `GET` | `/v1/proveedores/listar` | Paginated list of providers. |
+    | `GET` | `/v1/proveedores/:id` | Get a single provider by ID. |
+    | `POST` | `/v1/proveedores/crear` | Create a new provider. |
+    | `PUT` | `/v1/proveedores/editar` | Update an existing provider (ID sent in body). |
+    | `DELETE` | `/v1/proveedores/eliminar/:id` | Soft-delete a provider (marks as inactive). |
+    | `GET` | `/v1/proveedores/listar/select` | Lightweight list for dropdown population — returns each provider with its associated services. |
+
+    **`GET /v1/proveedores/listar` query parameters**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `busqueda` | `string` | Free-text search across provider name / RUC |
+    | `estado` | `0` \| `1` | Filter by active (`1`) or inactive (`0`) status |
+    | `limit` | `number` | Page size |
+    | `offset` | `number` | Pagination offset |
+
+    **`PUT /v1/proveedores/editar` request body**
+
+    ```json
+    {
+      "proveedor_id": 5,
+      "nombre": "Proveedor Actualizado",
+      "ruc": "20123456789",
+      "contacto_soporte": "soporte@proveedor.com",
+      "sla_soporte": 4,
+      "is_active": 1
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Provider Services (Servicios de Proveedor)">
+    | Method | Path | Description |
+    |---|---|---|
+    | `GET` | `/v1/servicios-proveedor/listar` | Paginated list of provider services. |
+    | `POST` | `/v1/servicios-proveedor/crear` | Create a new provider service. |
+    | `PUT` | `/v1/servicios-proveedor/servicios-proveedor/:id` | Update a provider service by ID. |
+    | `POST` | `/v1/servicios-proveedor/:id/ajustar-capacidad` | Adjust the available capacity of a service by a delta value. |
+    | `GET` | `/v1/servicios-proveedor/:id/conexiones` | Get a service together with all its associated connections. |
+    | `GET` | `/v1/servicios-proveedor/next-cid` | Get the next available internal CID number. |
+    | `GET` | `/v1/servicios-proveedor/proveedor/:id` | List all services belonging to a specific provider. |
+
+    **`GET /v1/servicios-proveedor/listar` query parameters**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `search` | `string` | Free-text search |
+    | `limit` | `number` | Page size |
+    | `offset` | `number` | Pagination offset |
+
+    **`POST /v1/servicios-proveedor/:id/ajustar-capacidad` request body**
+
+    ```json
+    {
+      "delta_disponible": -50,
+      "motivo": "Venta de nuevo enlace cliente XYZ"
+    }
+    ```
+
+    A positive `delta_disponible` increases available capacity; a negative value decreases it.
+  </Accordion>
+
+  <Accordion title="Nodes (Nodos)">
+    | Method | Path | Description |
+    |---|---|---|
+    | `GET` | `/v1/nodos/listar` | Paginated list of nodes. |
+    | `GET` | `/v1/nodos/:id` | Get node detail including associated services and equipment IDs. |
+    | `POST` | `/v1/nodos/crear` | Create a new node. |
+    | `PATCH` | `/v1/nodos/:id` | Partially update a node. |
+    | `GET` | `/v1/nodos/listar/select` | Lightweight node list for dropdown population. |
+
+    **`GET /v1/nodos/listar` query parameters**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `search` | `string` | Free-text search by name or location |
+    | `limit` | `number` | Page size |
+    | `offset` | `number` | Pagination offset |
+
+    **`GET /v1/nodos/:id` response shape**
+
+    ```json
+    {
+      "ok": true,
+      "message": "ok",
+      "item": {
+        "nodo_id": 12,
+        "nombre": "Nodo Lima Norte",
+        "tipo_nodo": "POP",
+        "departamento": "Lima",
+        "provincia": "Lima",
+        "distrito": "Independencia",
+        "latitud": "-11.9854",
+        "longitud": "-77.0311",
+        "estado": 1,
+        "equipos_ids": [3, 7, 11],
+        "servicios": []
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Connections (Conexiones / Enlaces)">
+    | Method | Path | Description |
+    |---|---|---|
+    | `GET` | `/v1/conexiones/listar` | Paginated list of connections (enlaces). |
+    | `GET` | `/v1/conexiones/:id` | Get a connection by its `enlace_id`. |
+    | `POST` | `/v1/conexiones` | Create a new connection. |
+    | `PUT` | `/v1/conexiones/:id` | Update an existing connection. |
+    | `GET` | `/v1/conexiones/listar/select` | Lightweight connection list for dropdown population. |
+
+    **`GET /v1/conexiones/listar` query parameters**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `limit` | `number` | Page size |
+    | `offset` | `number` | Pagination offset |
+
+    **`POST /v1/conexiones` request body (key fields)**
+
+    ```json
+    {
+      "nodo_a": 3,
+      "configuracion_nodo_a": "PE",
+      "nodo_b": 7,
+      "configuracion_nodo_b": "CE",
+      "tipo_enlace": "FIBRA",
+      "modalidad_enlace": "DEDICADO",
+      "cliente_id": 21,
+      "servicio_id": 5,
+      "departamento_enlace": "Lima",
+      "provincia_enlace": "Lima",
+      "distrito_enlace": "Miraflores",
+      "direccion_enlace": "Av. Larco 123",
+      "estado": "ACTIVO",
+      "fecha_activacion": "2025-01-15",
+      "bw_contratado": 100,
+      "cid": "CID-00042"
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Equipment (Equipos Principales)">
+    | Method | Path | Description |
+    |---|---|---|
+    | `GET` | `/v1/equipo_principal/listar` | Paginated list of network equipment. |
+    | `GET` | `/v1/equipo_principal/:id` | Get full equipment detail including node, link, and SNMP fields. |
+    | `POST` | `/v1/equipo_principal/crear` | Register new equipment. |
+    | `PUT` | `/v1/equipo_principal/:id` | Update equipment fields. |
+    | `POST` | `/v1/equipo_principal/crear/catalogo/equipos` | Create a new entry in the equipment catalog (type / brand / model). |
+    | `GET` | `/v1/equipo_principal/catalogo/equipos` | List all catalog entries (types, brands, models). |
+    | `GET` | `/v1/equipo_principal/select/equipos` | Lightweight equipment list for dropdown population. |
+
+    **`GET /v1/equipo_principal/listar` query parameters**
+
+    | Parameter | Type | Description |
+    |---|---|---|
+    | `limit` | `number` | Page size |
+    | `offset` | `number` | Pagination offset |
+    | `search` | `string` | Free-text search by name, serial, or IP |
+
+    **`POST /v1/equipo_principal/crear` request body**
+
+    ```json
+    {
+      "nodo_id": 12,
+      "enlace_id": null,
+      "tipo_id": 2,
+      "marca_id": 1,
+      "modelo_id": 4,
+      "serial": "SN-ABC-001",
+      "usuario_gestion": "admin",
+      "password_gestion": "secret"
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Import (Importación)">
+    | Method | Path | Description |
+    |---|---|---|
+    | `POST` | `/v1/importacion/listar-columnas` | Upload an Excel file (`multipart/form-data`) and receive a per-sheet column summary. |
+    | `POST` | `/v1/importacion/listar-hoja-datos` | Upload an Excel file and receive the rows from the first sheet that matches the required column set. |
+
+    Both endpoints accept a `multipart/form-data` body with a single `file` field containing the `.xlsx` file.
+
+    **`POST /v1/importacion/listar-columnas` response shape**
+
+    ```json
+    {
+      "Hoja1": [
+        { "nombre": "CID", "tipo": "object", "nulos": 0 },
+        { "nombre": "PROVEEDOR", "tipo": "object", "nulos": 2 }
+      ]
+    }
+    ```
+
+    **Required columns for `/v1/importacion/listar-hoja-datos`**
+
+    `CID`, `ID PROVEEDOR`, `PROVEEDOR`, `CONDICION`, `MODALIDAD`, `DESTINO`, `CAPACIDAD COMPRADA`, `OBSERVACIÓN`, `CAPACIDAD VENDIDA`, `OBSERVACION DE VENTA`, `CAPACIDAD ACTUAL`
+  </Accordion>
+</AccordionGroup>

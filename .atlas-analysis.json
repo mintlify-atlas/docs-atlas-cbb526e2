@@ -1,0 +1,94 @@
+{
+  "projectType": "saas",
+  "projectName": "ICP System",
+  "projectDescription": "A network operations dashboard for ISPs to monitor capacity, manage providers, nodes, clients, and service connections with role-based access control.",
+  "theme": "luma",
+  "primaryColor": "#3B82F6",
+  "lightColor": "#EFF6FF",
+  "darkColor": "#1E3A5F",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/capacity-dashboard",
+              "features/zabbix-monitoring",
+              "features/providers",
+              "features/services",
+              "features/nodes",
+              "features/connections",
+              "features/clients",
+              "features/equipment"
+            ]
+          },
+          {
+            "group": "Administration",
+            "pages": [
+              "admin/users-roles",
+              "admin/excel-import",
+              "admin/contracts"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/setup",
+              "deployment/configuration",
+              "deployment/backend-api"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Capacity & risk dashboard showing contracted vs assigned vs available bandwidth per connection",
+    "Zabbix traffic monitoring integration with real-time IN/OUT Mbps per link",
+    "Provider and service management with bandwidth purchasing tracking",
+    "Network node management with geolocation (lat/lng, departamento/provincia/distrito)",
+    "Corporate client management with branch offices (sedes)",
+    "Network connection/link CRUD with bandwidth adjustment",
+    "Equipment inventory with SNMP configuration and management credentials",
+    "Excel file import for bulk data ingestion",
+    "Role-based access control (ADMIN, OPERADOR, NOC roles)",
+    "Dark/light mode theme toggle",
+    "JWT Bearer token authentication with auto-logout on 401"
+  ],
+  "publicApiSurface": [
+    "POST /v1/auth/login",
+    "GET /v1/auth/me",
+    "GET /v1/auth/users",
+    "GET /v1/proveedores/listar",
+    "POST /v1/proveedores/crear",
+    "PUT /v1/proveedores/editar",
+    "DELETE /v1/proveedores/eliminar/:id",
+    "GET /v1/servicios-proveedor/listar",
+    "POST /v1/servicios-proveedor/crear",
+    "PUT /v1/servicios-proveedor/servicios-proveedor/:id",
+    "POST /v1/servicios-proveedor/:id/ajustar-capacidad",
+    "GET /v1/servicios-proveedor/:id/conexiones",
+    "GET /v1/nodos/listar",
+    "POST /v1/nodos/crear",
+    "PATCH /v1/nodos/:id",
+    "GET /v1/nodos/:id",
+    "GET /v1/conexiones/listar",
+    "POST /v1/conexiones",
+    "PUT /v1/conexiones/:id",
+    "GET /v1/conexiones/:id",
+    "GET /v1/equipo_principal/listar",
+    "POST /v1/equipo_principal/crear",
+    "PUT /v1/equipo_principal/:id",
+    "GET /v1/equipo_principal/:id"
+  ]
+}

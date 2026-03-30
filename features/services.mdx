@@ -1,0 +1,261 @@
+---
+title: "Provider Services"
+description: "Manage bandwidth contracts purchased from upstream ISP providers. Each service tracks purchased, sold, utilized, and available capacity, and links to the network connections (EnlaceRed) that consume it."
+---
+
+## Overview
+
+The **Servicios (Provider Services)** module represents the bandwidth contracts you purchase from upstream providers. A single provider (e.g. TELEFÓNICA) can supply multiple services — for example, a 1 Gbps dedicated link in Lima and a 500 Mbps shared link in Arequipa. Each `ServicioProveedor` record tracks the full capacity lifecycle: how much you bought, how much you have sold onward to clients, how much is actively utilized, and how much headroom remains.
+
+<Note>
+`capacidad_disponible = capacidad_comprada − capacidad_vendida`. This field is managed by the system and updated via the **capacity adjustment** endpoint. You should not set it directly when creating or editing a service.
+</Note>
+
+---
+
+## Data Model
+
+```typescript
+type ServicioProveedor = {
+  servicio_id:          number;          // auto-increment primary key
+  proveedor_id:         number;          // FK → Proveedor.proveedor_id
+  proveedor_nombre:     string;          // denormalized provider name for display
+  nodo_id?:             number | null;   // optional FK to a network node
+  tipo_nodo?:           string | null;   // node type label (e.g. "CORE", "EDGE")
+  direccion?:           string | null;   // physical address of the node
+  modalidad:            string;          // service modality: DEDICADO, COMPARTIDO, etc.
+  capacidad_comprada:   number;          // total purchased bandwidth (Mbps)
+  capacidad_vendida:    number;          // bandwidth sold to end clients (Mbps)
+  capacidad_utilizada:  number;          // bandwidth actively in use (Mbps)
+  capacidad_disponible: number;          // remaining headroom (Mbps)
+  ubicacion_servicio:   string | null;   // human-readable service location
+  condicion:            string | null;   // ACTIVO | STANDBY | RESERVA | INACTIVO | BAJA
+  observacion:          string | null;   // free-text notes
+  cid_proveedor:        string | null;   // provider's circuit ID
+  cid_interno:          string | null;   // your internal circuit ID (auto-assigned)
+  created_at:           string;          // ISO datetime, e.g. "2026-01-15T10:30:00"
+};
+```
+
+---
+
+## Services List Page
+
+The **Enlaces por proveedor** page lists all provider services in a paginated table (10 per page by default).
+
+### Filters
+
+- **Búsqueda** — debounced free-text search across `proveedor_nombre`, `cid_proveedor`, `modalidad`, and `ubicacion_servicio`. Activates when the input reaches 2 or more characters.
+- **Proveedor** — dropdown of providers found in the current result set.
+- **CID** — dropdown filtered to `cid_proveedor` values of visible services.
+
+### KPI strip
+
+Inside the filter card, four mini-KPI tiles show the totals for the currently visible (filtered) services:
+
+| Tile | Field |
+|---|---|
+| Comprada | `capacidad_comprada` |
+| Vendida | `capacidad_vendida` |
+| Utilizada | `capacidad_utilizada` |
+| Disponible | `capacidad_disponible` |
+
+### Table columns
+
+| Column | Field(s) | Notes |
+|---|---|---|
+| CID | `cid_interno` | Monospace internal circuit ID. |
+| Proveedor + Destino | `proveedor_nombre`, `ubicacion_servicio` | Provider name and service location. |
+| Modalidad | `modalidad` | Badge: DEDICADO, COMPARTIDO, etc. |
+| Capacidades | `capacidad_comprada`, `capacidad_disponible` | Shows "Contratada" and "Actual" Mbps. |
+| Estado | `condicion` | Colored pill: ACTIVO (green), STANDBY/RESERVA (blue), INACTIVO/BAJA (red). |
+| Acciones | — | View detail, edit, increase capacity, decrease capacity. |
+
+---
+
+## Create Service
+
+Click **Nuevo servicio** to navigate to `/servicios/crear`.
+
+<Steps>
+  <Step title="Select a provider">
+    Choose a `proveedor_id` from the provider dropdown. The dropdown is populated by `GET /v1/proveedores/listar/select` and shows each provider with its existing services.
+  </Step>
+  <Step title="Fill in service details">
+    | Field | Required | Notes |
+    |---|---|---|
+    | `proveedor_id` | Yes | Must reference an existing active provider. |
+    | `nodo_id` | No | Optional FK to a network node. |
+    | `modalidad` | Yes | Service modality string, e.g. `DEDICADO` or `COMPARTIDO`. |
+    | `capacidad_comprada` | No | Purchased bandwidth in Mbps. |
+    | `ubicacion_servicio` | No | Free-text location, e.g. "Lima - San Isidro". |
+    | `condicion` | No | Initial status: `ACTIVO`, `STANDBY`, `RESERVA`, `INACTIVO`, or `BAJA`. |
+    | `observacion` | No | Internal notes. |
+    | `cid_interno` | No | Assigned automatically via `GET /v1/servicios-proveedor/next-cid` if left blank. |
+  </Step>
+  <Step title="Save">
+    Click **Guardar**. On success the response includes `servicio_id` and `cid_generado` (the auto-incremented circuit ID assigned by the system).
+  </Step>
+</Steps>
+
+### Auto-increment CID
+
+Before the creation form renders, the dashboard fetches the next available internal circuit ID:
+
+```bash
+GET /v1/servicios-proveedor/next-cid
+```
+
+```json
+{
+  "ok": true,
+  "next": 1045,
+  "last": 1044
+}
+```
+
+You can accept the suggested value or override it manually with your own `cid_interno`.
+
+### Create API call
+
+```bash
+POST /v1/servicios-proveedor/crear
+Content-Type: application/json
+
+{
+  "proveedor_id": 3,
+  "nodo_id": null,
+  "modalidad": "DEDICADO",
+  "capacidad_comprada": 500,
+  "ubicacion_servicio": "Lima - Miraflores",
+  "condicion": "ACTIVO",
+  "observacion": "Enlace fibra oscura troncal",
+  "cid_interno": "ICP-1045"
+}
+```
+
+```json
+{
+  "ok": true,
+  "message": "Servicio creado.",
+  "servicio_id": 88,
+  "cid_generado": 1045,
+  "cid_anterior": 1044
+}
+```
+
+---
+
+## Capacity Adjustment
+
+You can increase or decrease the `capacidad_disponible` of a service at any time without editing the full service record. This is used when you sell more capacity to a client (decreasing available headroom) or when a client terminates their contract (returning capacity to the pool).
+
+<AccordionGroup>
+  <Accordion title="Increase available capacity (AUMENTAR)">
+    Click the **↑** button on a service row and enter a positive `delta_disponible`.
+
+    ```bash
+    POST /v1/servicios-proveedor/{servicio_id}/ajustar-capacidad
+    Content-Type: application/json
+
+    {
+      "delta_disponible": 100,
+      "motivo": "Cliente ENTEL rescindió 100 Mbps"
+    }
+    ```
+
+    The response returns the updated capacity fields:
+
+    ```json
+    {
+      "ok": true,
+      "message": "Capacidad ajustada.",
+      "servicio_id": 88,
+      "capacidad_comprada": 500,
+      "capacidad_vendida": 300,
+      "capacidad_utilizada": 280,
+      "capacidad_disponible": 200
+    }
+    ```
+  </Accordion>
+  <Accordion title="Decrease available capacity (DISMINUIR)">
+    Click the **↓** button and enter a negative `delta_disponible` (or the modal may accept a positive value and negate it internally).
+
+    ```bash
+    POST /v1/servicios-proveedor/{servicio_id}/ajustar-capacidad
+    Content-Type: application/json
+
+    {
+      "delta_disponible": -50,
+      "motivo": "Nueva venta: cliente RIPLEY 50 Mbps"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+If the backend returns `ok: false` in the response body (even with HTTP 200), the frontend converts it into a thrown error so the adjustment modal displays the failure message inline. Always check the `ok` field in the response.
+</Warning>
+
+---
+
+## Service Detail Page
+
+Navigate to `/servicios/detalle/{servicio_id}` (or click the **eye icon** on a row) to open the full detail view.
+
+### Sections
+
+<AccordionGroup>
+  <Accordion title="Identificación del servicio">
+    Displays `proveedor_nombre`, `modalidad`, `ubicacion_servicio`, `condicion`, `capacidad_disponible`, and `observacion` in a two-column grid.
+  </Accordion>
+  <Accordion title="Capacidad del servicio">
+    Four KPI cards for `capacidad_comprada`, `capacidad_vendida`, `capacidad_utilizada`, and `capacidad_disponible`, plus a usage progress bar (`capacidad_utilizada / capacidad_comprada`). An alert pill appears when usage exceeds 75 % (ALTO) or 90 % (CRÍTICO).
+  </Accordion>
+  <Accordion title="Tráfico (chart)">
+    An SVG area chart showing simulated usage over time. In production this will be replaced by live Zabbix data.
+  </Accordion>
+  <Accordion title="Clientes del enlace (EnlaceRed)">
+    A searchable table of all network connections (`EnlaceRed`) that consume bandwidth from this service. Columns: Cliente (`razon_social`), Plan contratado (`bw_contratado`), Uso actual (`bw_disponible`), % enlace.
+
+    The top-consuming client is highlighted with a pill above the table.
+  </Accordion>
+</AccordionGroup>
+
+### EnlaceRed type
+
+```typescript
+type EnlaceRed = {
+  enlace_id:               number;
+  modalidad_enlace:        string | null;
+  enlace_estado:           string | null;
+  enlace_created_at:       string | null;
+  enlace_fecha_activacion: string | null;
+  bw_contratado:           number | null;  // client's contracted bandwidth (Mbps)
+  bw_disponible:           number | null;  // client's remaining bandwidth (Mbps)
+  cliente_id:              number | null;
+  cid:                     string | null;
+  razon_social:            string | null;  // client legal name
+  cliente_fecha_activacion: string | null;
+};
+```
+
+Fetched from:
+
+```bash
+GET /v1/servicios-proveedor/{servicio_id}/conexiones
+```
+
+---
+
+## API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/servicios-proveedor/listar` | Paginated list with optional `search`, `limit`, `offset`. |
+| `GET` | `/v1/servicios-proveedor/{servicio_id}/conexiones` | Service detail + all linked `EnlaceRed` connections. |
+| `GET` | `/v1/servicios-proveedor/proveedor/{proveedor_id}` | All services belonging to a specific provider. |
+| `GET` | `/v1/servicios-proveedor/next-cid` | Returns the next auto-increment CID value. |
+| `POST` | `/v1/servicios-proveedor/crear` | Create a new service. |
+| `POST` | `/v1/servicios-proveedor/{servicio_id}/ajustar-capacidad` | Adjust `capacidad_disponible` by `delta_disponible`. |
+| `PUT` | `/v1/servicios-proveedor/servicios-proveedor/{servicio_id}` | Full service edit. |

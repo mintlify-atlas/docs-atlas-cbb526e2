@@ -1,0 +1,124 @@
+---
+title: "Capacity Dashboard"
+description: "Monitor contracted vs. assigned vs. available bandwidth across all connections, with risk classification and per-client saturation analysis."
+---
+
+## Overview
+
+The **Capacidad & Riesgos** page is the home screen of the ICP System. It gives you a real-time executive view of every connection: how much bandwidth you purchased from each upstream provider (`contratado`), how much you have allocated to end clients (`asignado`), and how much headroom remains (`disponible`). Connections are automatically scored into four risk levels so you can act before clients experience degradation.
+
+---
+
+## KPI Cards
+
+The four summary cards at the top of the page aggregate values across all connections.
+
+| Card | Field(s) used | Description |
+|---|---|---|
+| **Total contratado** | `contratado` | Sum of all contracted bandwidth (Mbps) across every connection. |
+| **Total asignado** | `asignado` | Sum of all bandwidth currently allocated to clients. |
+| **Disponible** | `disponible` (`= contratado − asignado`, floored at 0) | Total unallocated bandwidth remaining in the network. |
+| **Riesgo** | `usoPct` (`= asignado / contratado × 100`) | Global usage percentage, with a count of LLENO and CRÍTICO connections as a subtitle. |
+
+---
+
+## Risk Classification
+
+Every connection is assigned a risk level based on its usage percentage (`usoPct`). The classification is computed in the `riesgo()` function:
+
+```typescript
+function riesgo(usoPct: number) {
+  if (usoPct >= 100) return { label: "LLENO",   color: "error",   key: "LLENO"   };
+  if (usoPct >= 85)  return { label: "CRÍTICO", color: "warning", key: "CRITICO" };
+  if (usoPct >= 70)  return { label: "MEDIO",   color: "info",    key: "MEDIO"   };
+  return               { label: "OK",      color: "success", key: "OK"      };
+}
+```
+
+| Level | Key | Threshold | Meaning |
+|---|---|---|---|
+| **OK** | `OK` | `usoPct < 70 %` | Healthy — plenty of capacity available. |
+| **MEDIO** | `MEDIO` | `70 % ≤ usoPct < 85 %` | Moderate usage — monitor trending upward. |
+| **CRÍTICO** | `CRITICO` | `85 % ≤ usoPct < 100 %` | High risk — plan capacity expansion soon. |
+| **LLENO** | `LLENO` | `usoPct ≥ 100 %` | Fully saturated — client impact likely. |
+
+<Note>
+`usoPct` is capped at 100 before the risk function is applied (`usoSeguro = Math.min(100, uso)`), so a connection that is technically over-provisioned still appears as LLENO rather than a value above 100.
+</Note>
+
+---
+
+## Charts
+
+### Risk Donut Chart — Connections by Risk Level
+
+The donut chart on the left shows how many of your connections fall into each risk bucket. Each slice represents a count of connections, color-coded by level:
+
+| Level | Color |
+|---|---|
+| OK | `#2e7d32` (green) |
+| MEDIO | `#0288d1` (blue) |
+| CRÍTICO | `#ed6c02` (orange) |
+| LLENO | `#d32f2f` (red) |
+
+Slices with zero connections are hidden automatically.
+
+### Bar Chart — Top 8 Clients at Highest Risk
+
+The bar chart on the right shows the eight clients with the **lowest available bandwidth** (`disponible`), aggregated per client across all their connections. Each client renders three bars:
+
+- `contratado` — total bandwidth purchased on behalf of this client
+- `asignado` — total bandwidth currently allocated
+- `disponible` — remaining headroom (`contratado − asignado`)
+
+Clients with `contratado = 0` are excluded from this chart.
+
+<Tip>
+**"Disponible bajo + Uso% alto = saturación / reclamos / SLA."**
+A client appearing in this chart with near-zero `disponible` and `usoPct` close to 100 % is operationally at risk: the link is effectively full. Any new traffic burst will cause packet loss or latency spikes that translate directly into SLA violations and inbound support tickets. Use this chart as your daily triage list.
+</Tip>
+
+---
+
+## Data Grid
+
+Below the charts, a full data grid lists every connection. The grid is **sorted by `usoPct` descending** by default so the most critical connections appear at the top.
+
+| Column | Field | Type | Notes |
+|---|---|---|---|
+| Conexión | `conexionId` | number | Unique connection identifier. |
+| Proveedor | `proveedor` | string | Upstream provider name (e.g. BITEL, CLARO). |
+| Cliente | `cliente` | string | End client name; shows `—` if unset. |
+| Contratado (Mbps) | `contratado` | number | Bandwidth purchased from the provider. |
+| Asignado (Mbps) | `asignado` | number | Bandwidth allocated to the client. |
+| Disponible (Mbps) | `disponible` | number | `contratado − asignado`, floored at 0. |
+| Uso | `usoPct` | progress bar + % | Visual bar showing usage percentage (0–100 %). |
+| Riesgo | `riesgoLabel` / `riesgoColor` | chip | Colored MUI chip: OK / MEDIO / CRÍTICO / LLENO. |
+
+### Default sort
+
+```typescript
+initialState={{
+  sorting: { sortModel: [{ field: "usoPct", sort: "desc" }] },
+}}
+```
+
+You can click any column header to re-sort interactively. All standard MUI DataGrid filtering and column visibility controls are available.
+
+---
+
+## Data Source
+
+In the current build, the dashboard reads from the mock dataset exported by `src/shared/mock.ts` (`capacidad` array). Each record has the shape:
+
+```typescript
+{
+  conexionId: number;   // e.g. 101
+  proveedor:  string;   // e.g. "BITEL"
+  cliente:    string;   // e.g. "MOVISTAR"
+  contratado: number;   // Mbps
+  asignado:   number;   // Mbps
+}
+```
+
+The derived fields (`disponible`, `usoPct`, `riesgoLabel`, `riesgoColor`, `riesgoKey`) are computed in `useMemo` inside `CapacidadPage`.

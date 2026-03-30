@@ -1,97 +1,67 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "ICP System"
+description: "Network operations dashboard for ISPs — monitor capacity, manage providers, nodes, clients, and connections."
 ---
 
-## Setting up
+ICP System is a web-based network operations dashboard built for Internet Service Providers. It gives your NOC and operations team a single pane of glass to track bandwidth capacity, manage infrastructure, oversee corporate clients, and monitor live traffic via Zabbix integration.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Set up ICP System and log in for the first time in minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Authentication" icon="lock" href="/authentication">
+    Learn how JWT tokens work and how sessions are managed.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Capacity Dashboard" icon="chart-pie" href="/features/capacity-dashboard">
+    Monitor contracted vs assigned vs available bandwidth per connection.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Zabbix Monitoring" icon="signal" href="/features/zabbix-monitoring">
+    View real-time IN/OUT traffic metrics collected by Zabbix.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What ICP System does
 
-Everything you need to create world-class documentation.
+ICP System centralises every layer of your ISP's network into one dashboard — from upstream provider contracts down to individual client connections.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<CardGroup cols={3}>
+  <Card title="Providers & Services" icon="building" href="/features/providers">
+    Track upstream providers, purchased bandwidth, and service contracts.
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Nodes" icon="circle-nodes" href="/features/nodes">
+    Manage physical and logical network nodes with geolocation data.
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Connections" icon="plug" href="/features/connections">
+    Create and manage client links with full bandwidth lifecycle tracking.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Corporate Clients" icon="users" href="/features/clients">
+    Manage corporate accounts and their branch offices (sedes).
   </Card>
-</Columns>
+  <Card title="Equipment" icon="server" href="/features/equipment">
+    Inventory network devices with SNMP and management credentials.
+  </Card>
+  <Card title="Administration" icon="gear" href="/admin/users-roles">
+    User accounts, role-based access, Excel import, and contracts.
+  </Card>
+</CardGroup>
 
-## Need inspiration?
+## Get up and running
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Steps>
+  <Step title="Deploy the frontend">
+    Build and serve the React application. Point `VITE_API_BASE_URL` at your backend API host.
+  </Step>
+  <Step title="Log in">
+    Navigate to `/login`, enter your credentials, and receive a JWT access token. The token is stored in `localStorage` and attached automatically to every request.
+  </Step>
+  <Step title="Explore capacity">
+    The home screen opens the **Capacity & Risks** dashboard. You'll see KPI cards for total contracted, assigned, and available bandwidth across all connections, along with risk distribution charts.
+  </Step>
+  <Step title="Configure your network">
+    Add your upstream **Providers**, create **Services** (bandwidth contracts), register **Nodes**, and wire up **Connections** to corporate clients.
+  </Step>
+</Steps>
+
+<Note>
+  ICP System requires a compatible REST API backend. See [Backend API](/deployment/backend-api) for the full list of endpoints the frontend consumes.
+</Note>

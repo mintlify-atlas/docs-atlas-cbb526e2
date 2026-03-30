@@ -1,0 +1,169 @@
+---
+title: "Corporate Clients"
+description: "Manage corporate clients and their branch offices (sedes) — the two-level client hierarchy used across the ICP System."
+---
+
+The Corporate Clients module (`/clientes_corporativo`) stores the companies that consume your network services. Clients sit at the top of a two-level hierarchy:
+
+```
+ClienteCorp
+  └── Sede  (branch office / delivery point)
+  └── Sede
+  └── ...
+```
+
+A client can have any number of branch offices. Connections are linked directly to the client record, while sedes capture where the service is physically delivered.
+
+## Client data model
+
+```typescript
+type ClienteCorp = {
+  cliente_id: number;
+
+  cid: string | null;          // internal circuit / client ID
+  cod_erp: string | null;      // ERP system code
+
+  razon_social: string | null; // legal company name
+  ruc: string | null;          // tax ID (Peruvian RUC)
+  responsable: string | null;  // account owner / contact name
+
+  fecha_activacion: string | null; // contract start date (ISO 8601)
+  is_active: 0 | 1 | null;    // 1 = active, 0 = inactive
+
+  conexion_id: number | null;  // primary connection linked to this client
+  created_at: string;
+};
+```
+
+## Sede (branch office) data model
+
+```typescript
+type Sede = {
+  sede_id: number;
+  cliente_id: number;
+
+  oficina: string | null;      // office / branch name
+  locacion: string | null;     // descriptive location label
+  direccion: string;           // street address (required)
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+
+  created_at: string;
+};
+```
+
+## Client list page
+
+Navigate to **Clientes Corporativos** in the sidebar. The table shows each client's CID, ERP code, razón social, RUC, and responsible contact.
+
+<Steps>
+  <Step title="Search">
+    Type in the search box to filter by razón social, RUC, CID, or ERP code. Press **Enter** or click **Buscar**. Click **Limpiar** to reset all filters.
+  </Step>
+  <Step title="Browse and act">
+    Results are paginated at 10 per page. From each row you can:
+    - **Editar** — open the client edit form at `/clientes_corporativo/:id/editar`.
+  </Step>
+  <Step title="Create a new client">
+    Click **Nuevo cliente** at the top-right to open the creation form at `/clientes_corporativo/crear`.
+  </Step>
+</Steps>
+
+## Creating and editing a client
+
+The creation and edit forms share the same fields:
+
+| Field | Description |
+|---|---|
+| `cid` | Internal client / circuit ID |
+| `cod_erp` | Code used in your ERP system |
+| `razon_social` | Legal company name |
+| `ruc` | Peruvian tax ID |
+| `responsable` | Account owner or primary contact |
+| `fecha_activacion` | Contract activation date |
+| `is_active` | `1` to activate, `0` to deactivate (edit only) |
+| `conexion_id` | Link to an existing connection record |
+
+## Sedes (branch offices)
+
+Each client can have multiple sedes. Navigate to a client's sedes at:
+
+```
+/clientes_corporativo/:cliente_id/sedes
+```
+
+The sedes page lists all branch offices for that client and lets you create, edit, or delete individual sedes.
+
+### Creating a sede
+
+<Steps>
+  <Step title="Open the sedes page">
+    From the client row in the list, navigate to the sedes sub-page for that client.
+  </Step>
+  <Step title="Fill in the sede form">
+    Provide the following details:
+    - **Oficina** — branch office name (e.g. "Oficina Central Lima").
+    - **Locacion** — descriptive location label.
+    - **Dirección** — street address (required).
+    - **Departamento**, **Provincia**, **Distrito** — geographic fields.
+  </Step>
+  <Step title="Save">
+    Click **Guardar**. The new sede appears immediately in the list.
+  </Step>
+</Steps>
+
+### Editing a sede
+
+Open the edit form for an existing sede, update any fields, and save. The system sends only the changed fields to the API (`exclude_unset=True` on the backend), so partial updates are safe.
+
+## API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/clientes-corporativo/listar` | Paginated list — accepts `busqueda`, `estado`, `limit`, `offset` |
+| `GET` | `/v1/clientes-corporativo/:id` | Fetch a single client by ID |
+| `POST` | `/v1/clientes-corporativo/crear` | Create a new client |
+| `PUT` | `/v1/clientes-corporativo/editar/:id` | Update an existing client |
+| `GET` | `/v1/clientes-corporativo/listar/select` | Lightweight list with sedes for dropdowns |
+| `GET` | `/v1/sedes/cliente/:cliente_id` | List all sedes for a client |
+| `GET` | `/v1/sedes/listar` | Paginated list of all sedes (with client info) |
+| `POST` | `/v1/sedes/crear` | Create a new sede |
+| `PUT` | `/v1/sedes/editar` | Update an existing sede |
+
+### Example: create client payload
+
+```json
+{
+  "cid": "CLI-00042",
+  "cod_erp": "ERP-2024-42",
+  "razon_social": "Empresa Ejemplo S.A.C.",
+  "ruc": "20512345678",
+  "responsable": "Juan Pérez",
+  "fecha_activacion": "2024-01-15"
+}
+```
+
+### Example: create sede payload
+
+```json
+{
+  "cliente_id": 42,
+  "oficina": "Sede Miraflores",
+  "locacion": "Lima - Miraflores / Piso 3",
+  "direccion": "Av. Larco 1150",
+  "departamento": "Lima",
+  "provincia": "Lima",
+  "distrito": "Miraflores"
+}
+```
+
+## Related modules
+
+Corporate clients are linked directly to network connections. Once a client exists, you can create a connection for them from the Connections module or use the `?cliente_id=` query parameter on the new-connection URL to pre-select the client.
+
+<CardGroup cols={1}>
+  <Card title="Connections (Links)" icon="link" href="/features/connections">
+    See how clients are bound to provider services and network nodes through the Connections module.
+  </Card>
+</CardGroup>

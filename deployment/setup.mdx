@@ -1,0 +1,96 @@
+---
+title: "Setup & Installation"
+description: "Get the ICP System frontend running locally and ready for production."
+---
+
+## Prerequisites
+
+Before you begin, make sure the following are available:
+
+- **Node.js 18+** — [nodejs.org](https://nodejs.org)
+- **npm** — bundled with Node.js
+- **ICP backend API** — the REST API must be reachable (see [Configuration](/deployment/configuration))
+
+---
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/DjAlvaroCuba/ISP-Capacity-FRONT
+    ```
+  </Step>
+
+  <Step title="Navigate to the app directory">
+    ```bash
+    cd ISP-Capacity-FRONT/red-dashboard
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Run the standard npm install command:
+
+    ```bash
+    npm install
+    ```
+
+    Key production dependencies installed:
+
+    | Package | Version | Purpose |
+    |---|---|---|
+    | `react` | ^19.2.0 | UI framework |
+    | `@mui/material` | ^7.3.7 | Component library |
+    | `@tanstack/react-query` | ^5.90.21 | Server state management |
+    | `axios` | ^1.13.5 | HTTP client |
+    | `recharts` | ^3.7.0 | Charts and data visualization |
+    | `react-router-dom` | ^7.13.0 | Client-side routing |
+    | `dayjs` | ^1.11.19 | Date formatting |
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env` file in the `red-dashboard/` directory and set the backend API URL. See [Configuration](/deployment/configuration) for all available variables and their meaning.
+
+    ```bash
+    # red-dashboard/.env
+    VITE_API_BASE_URL=http://127.0.0.1:8000/api
+    ```
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm run dev
+    ```
+
+    <Note>
+      The development server defaults to **http://localhost:5173**. Vite also configures a proxy so that requests to `/api` are forwarded to `http://127.0.0.1:8000`, which means the backend must be running locally on port 8000 during development.
+    </Note>
+  </Step>
+
+  <Step title="Build for production">
+    ```bash
+    npm run build
+    ```
+
+    This runs TypeScript compilation (`tsc -b`) followed by the Vite production build. Output is written to `red-dashboard/dist/`.
+  </Step>
+
+  <Step title="Preview the production build">
+    ```bash
+    npm run preview
+    ```
+
+    <Tip>
+      Run `npm run build && npm run preview` to validate the full production bundle locally before deploying. This serves the compiled `dist/` folder and closely mirrors what end users will experience in production.
+    </Tip>
+  </Step>
+</Steps>
+
+---
+
+## Available npm scripts
+
+| Script | Command | Description |
+|---|---|---|
+| `dev` | `vite` | Start the Vite development server with HMR |
+| `build` | `tsc -b && vite build` | Type-check and compile a production bundle |
+| `lint` | `eslint .` | Run ESLint across the entire project |
+| `preview` | `vite preview` | Serve the production build locally for testing |

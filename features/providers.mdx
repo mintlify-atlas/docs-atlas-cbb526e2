@@ -1,0 +1,185 @@
+---
+title: "Providers"
+description: "Manage upstream ISP providers — the companies from which you purchase bandwidth contracts. Providers are the root entity that services and connections are linked to."
+---
+
+## Overview
+
+The **Proveedores** module lets you register and maintain the upstream ISP providers (carriers) that sell bandwidth to your organization. Every bandwidth service (`ServicioProveedor`) and every network connection (`EnlaceRed`) traces back to a provider record. Keeping provider data accurate ensures that capacity reports, SLA tracking, and support escalations all have a valid reference.
+
+---
+
+## Data Model
+
+```typescript
+type Proveedor = {
+  proveedor_id:      number;          // auto-increment primary key
+  nombre:            string;          // legal name or trade name, e.g. "BITEL S.A.C."
+  ruc:               string | null;   // Peruvian tax ID (RUC), 11 digits
+  contacto_soporte:  string | null;   // support contact (email, phone, or NOC name)
+  sla_soporte:       number | null;   // agreed support SLA in hours
+};
+```
+
+---
+
+## Providers List Page
+
+When you navigate to **Proveedores**, you see a paginated table of all providers. The page loads 10 providers per page by default.
+
+### Filters
+
+- **Búsqueda** — free-text search by `nombre` or `contacto_soporte`. Press Enter or click **Buscar** to apply. Updates are debounced.
+- **Estado** — filter by active (`is_active = 1`), inactive (`is_active = 0`), or all. Defaults to active.
+
+### Table columns
+
+| Column | Field |
+|---|---|
+| Nombre / Razon social | `nombre` |
+| Contacto | `contacto_soporte` |
+| RUC | `ruc` |
+| Acciones | Edit button + Crear Servicio shortcut |
+
+### Row actions
+
+Each row has three actions:
+
+- **Visibility icon** — expands an inline sub-table showing all services (`ServicioProveedor`) linked to this provider. The sub-table columns are: CID, Tipo de enlace, Capacidad Comprada, Capacidad Vendida, Capacidad Utilizada, Capacidad Disponible, and Condición.
+- **Crear Servicio** — navigates to `/servicios/crear` with `proveedor_id` pre-filled in router state.
+- **Edit icon** — opens the edit modal for this provider.
+
+---
+
+## Create Provider
+
+Click **Nuevo proveedor** in the top-right corner to navigate to the provider creation form.
+
+<Steps>
+  <Step title="Fill in the provider details">
+    Complete the form fields:
+
+    | Field | Required | Notes |
+    |---|---|---|
+    | `nombre` | Yes | Legal or commercial name. Cannot be empty. |
+    | `ruc` | No | 11-character Peruvian tax ID. Leave blank if not applicable. |
+    | `contacto_soporte` | No | Email address, phone number, or NOC team name. |
+    | `sla_soporte` | No | SLA commitment in hours (must be a number ≥ 0 or left blank). |
+
+  </Step>
+  <Step title="Save">
+    Click **Guardar**. The form validates that `nombre` is non-empty and that `sla_soporte`, if provided, is a finite number ≥ 0. On success, the providers list is invalidated and refreshed.
+  </Step>
+</Steps>
+
+### Create API call
+
+```bash
+POST /v1/proveedores/crear
+Content-Type: application/json
+
+{
+  "nombre": "BITEL S.A.C.",
+  "ruc": "20600227461",
+  "contacto_soporte": "noc@bitel.com.pe",
+  "sla_soporte": 4
+}
+```
+
+```json
+{
+  "ok": true,
+  "message": "Proveedor creado correctamente.",
+  "proveedor_id": 42
+}
+```
+
+---
+
+## Edit Provider
+
+Click the **edit icon** on any row to open the edit modal. The same four fields are available: `nombre`, `ruc`, `contacto_soporte`, and `sla_soporte`.
+
+<Note>
+The edit form detects when no fields have changed and shows a "No hay cambios para guardar" warning instead of making an unnecessary API call.
+</Note>
+
+### Edit API call
+
+```bash
+PUT /v1/proveedores/editar
+Content-Type: application/json
+
+{
+  "proveedor_id": 42,
+  "nombre": "BITEL S.A.C.",
+  "ruc": "20600227461",
+  "contacto_soporte": "noc-escalation@bitel.com.pe",
+  "sla_soporte": 2,
+  "is_active": 1
+}
+```
+
+---
+
+## Soft Delete
+
+Providers are **never permanently deleted**. Clicking delete on a provider (via `eliminarProveedor`) calls:
+
+```bash
+DELETE /v1/proveedores/eliminar/{proveedor_id}
+```
+
+This marks the provider as inactive (`is_active = 0`). The provider will no longer appear in the default list (which filters by `estado = 1`) but remains in the database and can be retrieved by setting the Estado filter to **Inactivos** or **Todos**.
+
+<Warning>
+You cannot deactivate a provider that still has active services linked to it. The API returns HTTP 400 or 409 with a message containing "no se puede desactivar", and the form displays the warning inline without closing.
+</Warning>
+
+---
+
+## Select Endpoint (for Dropdowns)
+
+When creating a service or connection, other modules use a lightweight endpoint to populate provider dropdowns. This endpoint returns each provider together with a summary of its services:
+
+```bash
+GET /v1/proveedores/listar/select
+```
+
+```typescript
+type ProveedorSelect = {
+  proveedor_id: number;
+  nombre:       string;
+  servicios: {
+    servicio_id:        number | null;
+    ubicacion_servicio: string | null;
+    condicion:          string | null;
+  }[];
+};
+```
+
+---
+
+## API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/v1/proveedores/listar` | Paginated list with optional `busqueda`, `estado`, `limit`, `offset`. |
+| `GET` | `/v1/proveedores/{proveedor_id}` | Single provider by ID. |
+| `POST` | `/v1/proveedores/crear` | Create a new provider. |
+| `PUT` | `/v1/proveedores/editar` | Update an existing provider. |
+| `DELETE` | `/v1/proveedores/eliminar/{proveedor_id}` | Soft-delete (set `is_active = 0`). |
+| `GET` | `/v1/proveedores/listar/select` | Lightweight list for dropdown use, includes nested services. |
+
+---
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Provider Services" href="/features/services">
+    Create and manage bandwidth contracts purchased from providers.
+  </Card>
+  <Card title="Capacity Dashboard" href="/features/capacity-dashboard">
+    View contracted vs. assigned capacity and risk levels per connection.
+  </Card>
+</CardGroup>

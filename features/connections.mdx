@@ -1,0 +1,195 @@
+---
+title: "Connections (Links)"
+description: "Create and manage client network links — the service instances that tie a provider circuit to a corporate client."
+---
+
+The Connections module (`/conexiones`) tracks every client-facing network link in your ISP. A connection (also called an *enlace*) is the operational record that joins a provider service, a corporate client, two network nodes (A and B), and a set of equipment into a single billable circuit.
+
+<Note>
+A connection is the bridge between what you buy from a provider (a `ServicioProveedor`) and what you sell to a client (`ClienteCorp`). You cannot create a connection without first having at least one node and one provider service registered in the system.
+</Note>
+
+## Data model
+
+```typescript
+type Conexion = {
+  // Core identity
+  enlace_id: number;
+  servicio_id: number | null;        // ID of the provider service backing this link
+  cid_enlace: string | null;         // circuit identifier (auto-generated)
+  modalidad_enlace: string | null;   // physical modality (e.g. "Fibra Óptica")
+  tipo_enlace: string | null;        // service type (e.g. "Internet", "IPVPN")
+  enlace_estado: string | number | null; // "ACTIVO" | "INACTIVO" | "DOWN"
+  enlace_fecha_activacion: string | null; // activation date (ISO 8601)
+
+  // Bandwidth (all values in Mbps)
+  bw_contratado: number | null;    // contracted bandwidth
+  bw_disponible: number | null;    // current available bandwidth
+  bw_utilizado: number | null;     // utilised bandwidth
+  created_at: string | null;
+
+  // Service location
+  departamento_enlace: string | null;
+  provincia_enlace: string | null;
+  distrito_enlace: string | null;
+  direccion_enlace: string | null;
+  locacion: string | null;          // descriptive location label
+
+  // Client
+  cliente_id: number | null;
+  cliente_razon_social: string | null;
+  cliente_ruc: string | null;
+
+  // Topology — source node (A) and destination node (B)
+  nodo_a: number | null;
+  nodo_a_nombre: string | null;
+  nodo_a_tipo: string | null;
+  configuracion_nodo_a: string | null;  // pasted node A config block
+
+  nodo_b: number | null;
+  nodo_b_nombre: string | null;
+  nodo_b_tipo: string | null;
+  configuracion_nodo_b: string | null;  // pasted node B config block
+
+  // Associated equipment
+  equipos_ids: number[];
+};
+```
+
+## Connection list page
+
+Navigate to **Conexiones** in the sidebar. The list shows each connection's circuit ID (CID), service type, client name and location, bandwidth figures (contracted / available / utilised), and status pill.
+
+From each row you can:
+
+- **View** — open the full connection detail page.
+- **Edit** — open the edit form.
+- **Increase BW** (↑ arrow) — open the Adjust Bandwidth modal in *AUMENTAR* mode.
+- **Decrease BW** (↓ arrow) — open the Adjust Bandwidth modal in *DISMINUIR* mode.
+
+The list is paginated at 10 records per page. Use **Anterior** / **Siguiente** to navigate.
+
+## Creating a connection
+
+Click **Nueva servicio cliente** and fill in the form, which is divided into four sections:
+
+<Steps>
+  <Step title="Client information">
+    Select the **Corporate client** from the dropdown. The CID field is pre-filled automatically.
+
+    Then choose:
+    - **Tipo de Servicio al Cliente** — the product being delivered (Internet, IPVPN, Fibra Oscura, Seguridad Perimetral, Telefonia IP, Internet P2P, VPN, Transporte, Transito IP, Cableado estructurado).
+    - **Capacidad contratada (Mbps)** — the sold bandwidth. The *Capacidad disponible* field mirrors this value automatically and is read-only.
+    - **Condición** — initial status: Pendiente, Activo, Suspendido, or Baja.
+    - **Fecha de activación** — the service start date.
+  </Step>
+  <Step title="Service location (Ubicación Servicio Cliente)">
+    Enter the geographic location where the service is delivered:
+    - **Departamento** and **Provincia** (linked selectors populated from the Peruvian ubigeo list).
+    - **Distrito** — free-text district name.
+    - **Locacion** — a descriptive label such as "Lima - San Isidro / Data Center".
+    - **Dirección** — full street address.
+  </Step>
+  <Step title="Link details (Detalles de enlace)">
+    Configure the underlying circuit:
+    - **Tipo de enlace** — P2P, Fibra Oscura, GPON, or Satelital.
+    - **Proveedor principal** — select from registered providers.
+    - **Servicio del proveedor** — unlocked after choosing a provider; shows each service's modality, location, and remaining available Mbps.
+    - **Asignación IP** — IP block assigned to this circuit (e.g. `192.168.1.1/24`). This is a local reference field and is not submitted to the backend.
+    - **Nodo Acceso A** and **Nodo Acceso B** — the two endpoints of the link.
+    - **Configuración Nodo A / B** — paste the router or switch configuration block for each node.
+  </Step>
+  <Step title="Equipment (Equipos asignados)">
+    Click **+ Agregar equipo** to attach one or more pieces of equipment to this connection. Each entry uses a dropdown showing `tipo | marca | modelo | SN: serial`. Remove any entry with the ❌ button.
+
+    Click **Guardar conexión** to submit. On success, the system navigates to the new connection's detail page.
+  </Step>
+</Steps>
+
+## Connection detail page
+
+Access a connection at `/conexiones/:enlace_id`. The page is divided into named sections:
+
+<AccordionGroup>
+  <Accordion title="Enlace cliente">
+    Shows modalidad, estado (ACTIVO / INACTIVO), fecha de activación, BW contratado, BW disponible, and the creation timestamp.
+  </Accordion>
+  <Accordion title="Cliente">
+    Displays the client's razón social and RUC.
+  </Accordion>
+  <Accordion title="Topología del enlace">
+    Lists Nodo A (name and type) and Nodo B (name and type) — the physical endpoints of the circuit.
+  </Accordion>
+  <Accordion title="Ubicación">
+    Shows departamento, provincia, distrito, dirección, and locación for the service delivery point.
+  </Accordion>
+</AccordionGroup>
+
+## Adjusting bandwidth
+
+You can increase or decrease the contracted bandwidth of any active connection without creating a new record. Open the modal from the connection list using the ↑ or ↓ action buttons.
+
+The **Ajustar BW** modal shows:
+
+- **CID** and **Servicio** header for quick identification.
+- **BW actual** — the current contracted bandwidth.
+- **MBPS** — enter the Mbps delta to apply.
+- **Motivo** (optional) — a free-text reason for the adjustment.
+- A live preview showing:
+  - **BW resultante** on the connection.
+  - **Servicio disponible actual** and **resultante** on the backing provider service.
+  - **Servicio vendida** (reference figure).
+
+When you confirm, the system performs two atomic operations:
+
+1. Calls `POST /v1/conexiones/:enlace_id/ajustar-bw` with `{ modo, mbps }` to update the link's `bw_contratado`.
+2. Calls the provider-service adjustment endpoint to recalculate `capacidad_disponible` on the backing service.
+
+<Warning>
+If the bandwidth increase causes the estimated service capacity to go negative, the preview shows the result in red. The system does not block the submission — you must validate availability manually before confirming.
+</Warning>
+
+## API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/conexiones/listar` | Paginated list — accepts `limit`, `offset` |
+| `GET` | `/v1/conexiones/:id` | Fetch a single connection by enlace ID |
+| `POST` | `/v1/conexiones` | Create a new connection |
+| `PUT` | `/v1/conexiones/:id` | Update an existing connection |
+| `GET` | `/v1/conexiones/listar/select` | Lightweight list for dropdowns |
+| `POST` | `/v1/conexiones/:id/ajustar-bw` | Adjust contracted bandwidth |
+
+### Example: create payload
+
+```json
+{
+  "nodo_a": 12,
+  "configuracion_nodo_a": "interface Gi0/0\n ip address 10.0.0.1 255.255.255.252",
+  "nodo_b": 17,
+  "configuracion_nodo_b": null,
+  "tipo_enlace": "Internet",
+  "modalidad_enlace": "P2P",
+  "cliente_id": 5,
+  "servicio_id": 3,
+  "departamento_enlace": "Lima",
+  "provincia_enlace": "Lima",
+  "distrito_enlace": "Miraflores",
+  "direccion_enlace": "Av. Larco 1150",
+  "estado": "ACTIVO",
+  "fecha_activacion": "2025-06-01",
+  "bw_contratado": 500,
+  "bw_utilizado": 0,
+  "cid": "257001",
+  "locacion": "Lima - Miraflores / Oficina"
+}
+```
+
+### Example: bandwidth adjustment payload
+
+```json
+{
+  "modo": "AUMENTAR",
+  "mbps": 100
+}
+```

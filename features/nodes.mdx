@@ -1,0 +1,155 @@
+---
+title: "Nodes"
+description: "Manage physical and logical network nodes — the backbone locations of your ISP topology."
+---
+
+The Nodes module (`/nodos`) lets you register, search, and inspect every network node in your infrastructure. A node represents a physical or logical site — a rack room, a mast, a mini-node, or a customer premises — that anchors one or both ends of a connection.
+
+## Data model
+
+Each node is described by the following fields.
+
+```typescript
+type Nodo = {
+  nodo_id: number;
+
+  nombre: string | null;       // human-readable node name
+  tipo_nodo: string | null;    // "NODO" | "MININODO" | "CLIENTE"
+
+  direccion: string | null;    // street address
+  departamento: string | null; // region / department
+  provincia: string | null;    // province
+  distrito: string | null;     // district
+
+  latitud: string | null;      // GPS latitude (decimal degrees)
+  longitud: string | null;     // GPS longitude (decimal degrees)
+
+  estado: number | null;       // 1 = active, 0 = inactive
+  created_at: string | null;   // ISO 8601 creation timestamp
+};
+```
+
+When you fetch a node by ID, the response also includes the richer `NodoDetalle` type, which adds:
+
+```typescript
+type NodoDetalle = Nodo & {
+  equipos_ids: number[];    // IDs of equipment assigned to this node
+  servicios: ServicioNodo[]; // provider services available at this node
+};
+
+type ServicioNodo = {
+  servicio_id: number;
+  modalidad: string | null;                // e.g. "Fibra Óptica", "GPON"
+  capacidad_disponible: number | null;     // remaining Mbps on this service
+  ubicacion_servicio: string | null;       // service location description
+  condicion: string | null;                // "Activo", "Pendiente", etc.
+  nombre_proveedor: string | null;         // provider name
+};
+```
+
+## Node types
+
+The system recognises three node types, selected during creation:
+
+| Value | Label | Description |
+|---|---|---|
+| `NODO` | Nodo | A full network node (aggregation or distribution point) |
+| `MININODO` | Mininodo | A smaller distribution site |
+| `CLIENTE` | Cliente | A customer-premises node, linked to a specific connection |
+
+<Note>
+When you choose the **Cliente** type, an additional **Servicio de cliente** selector appears in the form. You must pick an existing connection (enlace) to associate with this node.
+</Note>
+
+## Node list page
+
+Navigate to **Nodos** in the sidebar to open the node catalog.
+
+<Steps>
+  <Step title="Search">
+    Type in the search box to filter nodes by name, type, address, or ubigeo (geographic code). Press **Enter** or click **Buscar** to apply the filter.
+  </Step>
+  <Step title="Browse results">
+    The table displays each node's ID, geographic location (department / province / district and street address), and node type. Results are paginated — 10 per page by default. Use **Anterior** / **Siguiente** to move between pages.
+  </Step>
+  <Step title="Open a node">
+    Click **Ver info** on any row to open the node detail page, or **Editar** to jump directly to the edit form.
+  </Step>
+</Steps>
+
+## Creating a node
+
+Click **Nuevo nodo** at the top-right of the list. The creation form contains the following fields:
+
+<AccordionGroup>
+  <Accordion title="Node type and identification">
+    - **Tipo de nodo** (required) — choose `NODO`, `MININODO`, or `CLIENTE`.
+    - **Servicio de cliente** — visible only when the type is `CLIENTE`. Select the connection this node represents from the dropdown.
+  </Accordion>
+  <Accordion title="Geographic location">
+    - **Departamento** — select from a built-in list of Peruvian departments.
+    - **Provincia** — unlocked once a department is selected.
+    - **Distrito** — free-text district name.
+    - **Dirección** — full street address.
+  </Accordion>
+  <Accordion title="GPS coordinates">
+    - **Latitud** — decimal-degree latitude (e.g. `-12.04318`).
+    - **Longitud** — decimal-degree longitude (e.g. `-77.02824`).
+  </Accordion>
+  <Accordion title="Equipment assignment (optional)">
+    Click **+ Equipo** to attach an existing piece of equipment to the node at creation time. Select the equipment from the dropdown showing `tipo | marca | modelo | SN: serial`. Click **Quitar equipo** to remove the selection.
+  </Accordion>
+</AccordionGroup>
+
+Click **Guardar** to submit. On success, the system redirects you to the node list.
+
+## Node detail page
+
+Reach a node's detail page at `/nodos/ver/:nodo_id`. The page is divided into sections:
+
+<CardGroup cols={2}>
+  <Card title="Node details" icon="location-dot">
+    Displays `nodo_id`, node type, full address, and GPS coordinates (latitud / longitud).
+  </Card>
+  <Card title="Provider services" icon="network-wired">
+    Lists every `ServicioNodo` associated with this node: service ID, modality, available capacity (Mbps), location description, condition, and provider name.
+  </Card>
+  <Card title="Associated equipment" icon="server">
+    Shows the list of `equipos_ids` — the IDs of all equipment registered at this node.
+  </Card>
+</CardGroup>
+
+## API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/nodos/listar` | Paginated list — accepts `search`, `limit`, `offset` |
+| `GET` | `/v1/nodos/:id` | Fetch a single node with services and equipment |
+| `POST` | `/v1/nodos/crear` | Create a new node |
+| `PATCH` | `/v1/nodos/:id` | Update an existing node |
+| `GET` | `/v1/nodos/listar/select` | Lightweight list for dropdowns |
+
+### Example: list request
+
+```json
+GET /v1/nodos/listar?search=Lima&limit=10&offset=0
+```
+
+### Example: create payload
+
+```json
+{
+  "tipo_nodo": "NODO",
+  "direccion": "Av. Javier Prado Este 1234",
+  "departamento": "Lima",
+  "provincia": "Lima",
+  "distrito": "San Isidro",
+  "latitud": "-12.09330",
+  "longitud": "-77.03560",
+  "estado": 1
+}
+```
+
+<Tip>
+Always populate `latitud` and `longitud` when registering nodes. These coordinates are used for geographic capacity reports and network-coverage mapping. Nodes without GPS data will appear as unlocated in any map-based views.
+</Tip>

@@ -1,0 +1,116 @@
+---
+title: "Contracts"
+description: "Track and monitor provider contracts, expiry dates, and monthly billing inside ICP System."
+---
+
+<Note>
+  The Contracts module currently uses mock data while the backend API for contract persistence is being developed. The UI and data model are fully defined; live data will be available in a future release.
+</Note>
+
+## Overview
+
+The Contracts module at `/contratos` gives you a visual dashboard of every formal agreement between your ISP and the providers that supply capacity to your network. Each contract captures the provider, service type, date range, monthly cost, payment schedule, and current status — all displayed in a paginated, sortable data grid.
+
+Contracts sit at the intersection of providers and connections: a provider supplies capacity under a contract, and that capacity is then allocated to corporate clients through connections (servicios cliente).
+
+## Accessing the Module
+
+Navigate to **Contratos** in the sidebar. The route is available to all authenticated users — there is no role restriction on this module. It appears in the navigation between "Servicios Cliente" and "Reportes".
+
+## Contract Data Model
+
+Each contract record has the following fields:
+
+| Field              | Type     | Description                                                    |
+|--------------------|----------|----------------------------------------------------------------|
+| `id`               | `number` | Unique contract identifier                                     |
+| `proveedor`        | `string` | Provider name (displayed in bold in the grid)                 |
+| `tipo`             | `string` | Service type, e.g. `"Fibra dedicada"`, `"Transporte"`         |
+| `inicio`           | `string` | Contract start date (`YYYY-MM-DD`)                            |
+| `fin`              | `string` | Contract end date (`YYYY-MM-DD`)                              |
+| `monto_mensual`    | `number` | Monthly billing amount                                         |
+| `moneda`           | `string` | Unit or currency label, e.g. `"mbps"`, `"USD"`                |
+| `modalidad_pago`   | `string` | Payment schedule, e.g. `"Mensual"`, `"Trimestral"`           |
+| `estado`           | `string` | `"Activo"` or `"Inactivo"`                                    |
+| `observacion`      | `string` | Free-text notes about the contract                             |
+
+## Grid Columns
+
+The data grid renders the following columns:
+
+<AccordionGroup>
+  <Accordion title="Contrato (id)">
+    The unique numeric contract ID. Used to identify and reference the record.
+  </Accordion>
+  <Accordion title="Proveedor">
+    The provider name displayed in bold text. Corresponds to a provider in the Proveedores module.
+  </Accordion>
+  <Accordion title="Tipo">
+    The type of service covered by the contract (e.g., `Fibra dedicada`).
+  </Accordion>
+  <Accordion title="Inicio / Fin">
+    Start and end dates of the contract period in `YYYY-MM-DD` format.
+  </Accordion>
+  <Accordion title="Vence en">
+    A color-coded chip showing how many days remain until the contract expires, calculated from today's date:
+
+    | Days remaining | Chip color |
+    |----------------|-----------|
+    | ≤ 15 days      | Red (error) |
+    | 16 – 30 days   | Orange (warning) |
+    | 31 – 60 days   | Blue (info) |
+    | > 60 days      | Green (success) |
+  </Accordion>
+  <Accordion title="Mensualidad">
+    A color-coded chip showing the monthly billing amount with its currency/unit label:
+
+    | Monthly amount    | Chip color |
+    |-------------------|-----------|
+    | ≥ 5,000           | Red (error) |
+    | 2,000 – 4,999     | Orange (warning) |
+    | < 2,000           | Green (success) |
+  </Accordion>
+  <Accordion title="Pago">
+    Payment modality rendered as a blue info chip (e.g., `Mensual`).
+  </Accordion>
+  <Accordion title="Estado">
+    Green **Activo** chip when the contract is active; grey chip for any other state.
+  </Accordion>
+  <Accordion title="Observación">
+    Free-text notes field for additional context about the contract.
+  </Accordion>
+</AccordionGroup>
+
+## Pagination
+
+The grid defaults to **10 rows per page**. You can switch to 5 or 20 rows per page using the page-size selector at the bottom of the table.
+
+## Relationship to Other Modules
+
+Contracts connect several parts of the ICP System data model:
+
+<CardGroup cols={2}>
+  <Card title="Providers" icon="building" href="/features/providers">
+    Each contract is tied to a single provider. The `proveedor` field on the contract matches the provider names managed in the Proveedores module.
+  </Card>
+  <Card title="Connections" icon="cable" href="/features/connections">
+    Provider capacity allocated under a contract flows into the Servicios Cliente (connections) module, where it is distributed to corporate clients.
+  </Card>
+</CardGroup>
+
+## Typical Contract Lifecycle
+
+<Steps>
+  <Step title="Provider agreement">
+    Your NOC or procurement team negotiates terms with a provider and records the contract start date, end date, monthly cost, and service type.
+  </Step>
+  <Step title="Capacity allocation">
+    The contracted capacity (in Mbps or another unit) is made available in the Servicios Cliente module and assigned to corporate clients.
+  </Step>
+  <Step title="Expiry monitoring">
+    The **Vence en** column gives you at-a-glance visibility into contracts nearing expiry. Contracts within 15 days show a red chip, prompting renewal action.
+  </Step>
+  <Step title="Renewal or deactivation">
+    When a contract ends, its `estado` transitions to `"Inactivo"`. A renewed contract is entered as a new record with updated dates.
+  </Step>
+</Steps>

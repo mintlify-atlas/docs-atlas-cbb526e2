@@ -1,0 +1,72 @@
+---
+title: "Introduction"
+description: "ICP System is a network operations dashboard for Internet Service Providers — monitor capacity, manage infrastructure, and track clients from a single interface."
+keywords: ["ISP", "network operations", "capacity monitoring", "dashboard", "NOC"]
+---
+
+ICP System is a web-based dashboard built for ISP operations and NOC teams. It gives you a single interface to track bandwidth capacity across your upstream provider contracts, manage physical and logical network infrastructure, monitor live traffic via Zabbix, and oversee your corporate client base.
+
+The system is built with React 19 and TypeScript, backed by a REST API, and secured with JWT-based authentication and role-based access control.
+
+## Key capabilities
+
+- **Capacity monitoring** — Track contracted, assigned, and available bandwidth per connection. Visualise risk distribution with charts powered by Recharts.
+- **Provider management** — Record upstream providers, their purchased services, and bandwidth allocations.
+- **Node management** — Register physical and logical network nodes with geolocation and type metadata.
+- **Client management** — Manage corporate client accounts and their individual branch offices (sedes).
+- **Connection management** — Create and manage client links, associating them with nodes, services, and bandwidth quotas.
+- **Equipment inventory** — Maintain an inventory of network devices with SNMP credentials and management details.
+- **Zabbix integration** — View real-time IN/OUT traffic metrics from a connected Zabbix monitoring server.
+
+## Explore the features
+
+<CardGroup cols={2}>
+  <Card title="Capacity dashboard" icon="chart-pie" href="/features/capacity-dashboard">
+    KPI cards and risk charts showing bandwidth across all connections.
+  </Card>
+  <Card title="Zabbix monitoring" icon="signal" href="/features/zabbix-monitoring">
+    Real-time IN/OUT traffic graphs pulled from Zabbix.
+  </Card>
+  <Card title="Providers" icon="building" href="/features/providers">
+    Upstream provider records and purchased bandwidth services.
+  </Card>
+  <Card title="Nodes" icon="circle-nodes" href="/features/nodes">
+    Physical and logical network node registry with geolocation.
+  </Card>
+  <Card title="Connections" icon="plug" href="/features/connections">
+    Client links with full bandwidth lifecycle tracking.
+  </Card>
+  <Card title="Clients" icon="users" href="/features/clients">
+    Corporate client accounts and their branch office (sede) records.
+  </Card>
+  <Card title="Equipment" icon="server" href="/features/equipment">
+    Network device inventory with SNMP and management credentials.
+  </Card>
+</CardGroup>
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| UI framework | React 19 |
+| Language | TypeScript |
+| Component library | Material UI v7 |
+| Data fetching | TanStack Query v5 |
+| Charts | Recharts v3 |
+| Routing | React Router v7 |
+| Build tool | Vite 7 |
+| HTTP client | Axios |
+
+## Role-based access
+
+ICP System uses three roles to control what each user can do:
+
+| Role | Access level |
+|---|---|
+| `ADMIN` | Full access to all features, including user management |
+| `OPERADOR` | Standard access plus the ability to use the Excel import feature |
+| `NOC` | Read-only access to monitoring and operational views |
+
+<Info>
+  Your role is assigned by an administrator and returned as part of your user profile after login. See [Authentication](/authentication) for details on how roles are fetched and enforced.
+</Info>

@@ -1,0 +1,209 @@
+---
+title: "Equipment"
+description: "Track every network device in your infrastructure — from routers and switches to OLTs — with full management credentials and SNMP configuration."
+---
+
+The Equipment module (`/equipos_principales`) is the device inventory for your network. Each *Equipo Principal* record stores the hardware identity, management network configuration, access credentials, and SNMP parameters for one physical device, optionally linked to a node or a connection.
+
+## Data model
+
+### EquipoPrincipal (list view)
+
+The list endpoint returns a lightweight version of each device:
+
+```typescript
+type EquipoPrincipal = {
+  equipo_id: number;
+
+  nombre_equipo: string | null;  // device label / hostname
+  tipo_equipo: string | null;    // e.g. "Router", "Switch", "OLT"
+  marca_equipo: string | null;   // vendor brand
+  modelo: string | null;         // device model name
+  serial: string | null;         // serial number
+
+  ip_gestion: string | null;     // management IP address
+  estado_equipo: string | null;  // "Activo" | "Inactivo" | "Mantenimiento" | etc.
+  snmp_version: string | null;   // "v1" | "v2c" | "v3"
+
+  created_at: string | null;
+
+  nodo: Nodo | null;             // associated node (summary)
+};
+```
+
+### EquipoByIdOut (detail view)
+
+When you open a device's detail page, the API returns the full record with relational context:
+
+```typescript
+interface EquipoByIdOut {
+  equipo_id: number;
+
+  // Associated node
+  nodo_id: number | null;
+  nodo_nombre: string | null;
+  tipo_nodo: string | null;
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+
+  // Associated connection (enlace)
+  enlace_id: number | null;
+  cliente_nombre: string | null;
+  cliente_ruc: string | null;
+  tipo_enlace: string | null;
+  modalidad_enlace: string | null;
+  locacion: string | null;
+
+  // Device identity
+  nombre_equipo: string | null;
+  tipo_equipo: string | null;
+  marca: string | null;
+  modelo: string | null;
+  serial: string | null;
+
+  // Network configuration
+  ip_gestion: string | null;     // management IP
+  mascara: string | null;        // subnet mask
+  gateway: string | null;        // default gateway
+
+  // Access credentials
+  usuario_gestion: string | null;
+  password_gestion: string | null;
+
+  // SNMP
+  snmp_version: string | null;
+  snmp_community: string | null;
+
+  // Status
+  estado_equipo: string | null;
+  created_at: string | null;
+}
+```
+
+## Device status values
+
+The detail page colour-codes the device status using the following classification:
+
+| Status | Display | Meaning |
+|---|---|---|
+| `activo`, `operativo`, `online`, `up`, `habilitado`, `en servicio` | Green | Device is fully operational |
+| `mantenimiento`, `degradado`, `warning`, `observacion` | Yellow | Device requires attention |
+| `inactivo`, `down`, `offline`, `fallo`, `caido`, `deshabilitado` | Red | Device is not reachable or failed |
+| `provisionando`, `pendiente`, `instalacion`, `configurando` | Blue | Device is being set up |
+
+## Equipment catalog
+
+Before you can create equipment records, device types, brands, and models must exist in the catalog. The catalog (`CatalogoEquipo`) is a normalised lookup table:
+
+```typescript
+interface CatalogoEquipoIn {
+  tipo: string | null;   // device type label
+  marca: string | null;  // brand name
+  modelo: string | null; // model name
+}
+```
+
+Adding a new entry to the catalog creates or reuses the `tipo_id`, `marca_id`, and `modelo_id` used by equipment records. This ensures consistent naming across all devices.
+
+<Info>
+The catalog endpoint is `POST /v1/equipo_principal/crear/catalogo/equipos`. You only need to call this once per new device type/brand/model combination.
+</Info>
+
+## Equipment list page
+
+Navigate to **Equipos Principales** in the sidebar. The table shows each device's ID, brand, model, serial number, and device type.
+
+The list supports **debounced text search** (400 ms delay) and three independent dropdown filters:
+
+- **Marca** — filter by brand.
+- **Modelo** — filter by model (resets when you change the brand filter).
+- **Tipo** — filter by device type.
+
+Click the blue visibility icon (👁) on a row to expand an inline detail panel. Use **Ver info** to open the full detail page, or **Editar** to go straight to the edit form.
+
+## Creating equipment
+
+Click **Nuevo equipo** to open the creation form at `/equipos_principales/crear`. Provide:
+
+<AccordionGroup>
+  <Accordion title="Node and connection association">
+    - **nodo_id** — associate this device with an existing node.
+    - **enlace_id** — optionally link the device to a specific connection.
+  </Accordion>
+  <Accordion title="Hardware identity (catalog IDs)">
+    - **tipo_id** — device type from the catalog.
+    - **marca_id** — brand from the catalog.
+    - **modelo_id** — model from the catalog.
+    - **serial** — physical serial number printed on the device.
+  </Accordion>
+  <Accordion title="Management access">
+    - **usuario_gestion** — SSH / Telnet / web username.
+    - **password_gestion** — management password (stored in the system — see warning below).
+  </Accordion>
+</AccordionGroup>
+
+## Equipment detail page
+
+Access a device at `/equipos_principales/detalle/:equipo_id`. The page shows:
+
+<Steps>
+  <Step title="Header">
+    Device name, type, brand, status pill (colour-coded), and equipment ID badge.
+  </Step>
+  <Step title="Node section">
+    Visible when `nodo_id` is set. Shows the node name, type, and geographic location (department, province, district).
+  </Step>
+  <Step title="Enlace section">
+    Visible when `enlace_id` is set. Shows the linked client name, RUC, link type, modality, and locación.
+  </Step>
+  <Step title="Equipment section">
+    Full hardware details: nombre, tipo, marca, modelo, serial, IP de gestión, máscara, gateway, usuario de gestión, SNMP versión, and SNMP community.
+  </Step>
+  <Step title="Password Gestión">
+    The management password is masked by default. Click **Mostrar** to reveal the plaintext password, and **Ocultar** to mask it again.
+  </Step>
+</Steps>
+
+## API endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v1/equipo_principal/listar` | Paginated list — accepts `limit`, `offset`, `search` |
+| `GET` | `/v1/equipo_principal/:id` | Fetch full device detail |
+| `POST` | `/v1/equipo_principal/crear` | Create a new equipment record |
+| `PUT` | `/v1/equipo_principal/:id` | Update an existing record |
+| `GET` | `/v1/equipo_principal/select/equipos` | Lightweight list for dropdowns |
+| `POST` | `/v1/equipo_principal/crear/catalogo/equipos` | Add a type/brand/model to the catalog |
+| `GET` | `/v1/equipo_principal/catalogo/equipos` | Fetch the full catalog |
+
+### Example: create payload
+
+```json
+{
+  "nodo_id": 12,
+  "tipo_id": 3,
+  "marca_id": 7,
+  "modelo_id": 15,
+  "serial": "SN20240001",
+  "usuario_gestion": "admin",
+  "password_gestion": "s3cur3P@ss"
+}
+```
+
+### Example: update payload
+
+```json
+{
+  "ip_gestion": "10.10.5.22",
+  "mascara": "255.255.255.0",
+  "gateway": "10.10.5.1",
+  "snmp_version": "v2c",
+  "snmp_community": "public",
+  "estado_equipo": "Activo"
+}
+```
+
+<Warning>
+Management credentials (`usuario_gestion` and `password_gestion`) are stored in the ICP System database. Ensure your database and API server are secured appropriately. Do not share equipment detail URLs with users who should not have access to device credentials.
+</Warning>

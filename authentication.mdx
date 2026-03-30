@@ -1,0 +1,179 @@
+---
+title: "Authentication"
+description: "ICP System uses JWT Bearer token authentication. Learn how login works, where the token is stored, and how sessions expire."
+keywords: ["authentication", "JWT", "login", "Bearer token", "RBAC", "roles"]
+---
+
+ICP System authenticates users with JSON Web Tokens (JWT). You POST your credentials to the login endpoint, receive an `access_token`, and that token is automatically attached to every subsequent API request as a Bearer header.
+
+## Login flow
+
+To log in, send a `POST` request to `/v1/auth/login` with a JSON body containing your `username` and `password`.
+
+<CodeGroup>
+
+```typescript Request types
+// src/shared/api/auth.ts
+type LoginIn = {
+  username: string;
+  password: string;
+};
+
+type LoginOut = {
+  ok: boolean;
+  access_token: string;
+};
+```
+
+```json Request body
+{
+  "username": "your_username",
+  "password": "your_password"
+}
+```
+
+```json Response body
+{
+  "ok": true,
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+</CodeGroup>
+
+On success, the frontend saves the returned `access_token` to `localStorage` under the key `access_token` and redirects you to the home page (`/`).
+
+## Token storage and request headers
+
+The token is persisted in `localStorage` using the key `access_token`. A request interceptor reads it before every outgoing request and injects it as an `Authorization` header:
+
+```typescript
+// src/shared/api/http.ts
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem("access_token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+```
+
+You do not need to manage headers manually — every call made through the shared `http` Axios instance includes the token automatically.
+
+<Warning>
+  The access token is stored in `localStorage`, not in an httpOnly cookie. This means it is accessible to JavaScript running on the page. Ensure your deployment uses HTTPS and apply appropriate Content Security Policy headers to reduce exposure to XSS attacks.
+</Warning>
+
+## Session expiry and auto-logout
+
+A response interceptor watches every API response for a `401 Unauthorized` status. When a 401 is received — for example because the token has expired or been invalidated — the interceptor:
+
+1. Removes the token from `localStorage` (`clearAccessToken()`)
+2. Redirects the browser to `/login` via `window.location.href`
+
+```typescript
+// src/shared/api/http.ts
+http.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err?.response?.status === 401) {
+      clearAccessToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
+```
+
+Any in-flight navigation or unsaved form data will be lost when this redirect fires. Users are returned to the login page where they can authenticate again.
+
+## Protected routes
+
+All routes except `/login` are wrapped in `RequireAuth`. This component checks for the presence of `access_token` in `localStorage` before rendering any protected content. If no token is found, the user is redirected to `/login` and the originally requested path is preserved in router state so the app can redirect back after a successful login.
+
+```typescript
+// src/shared/auth/RequireAuth.tsx
+export function RequireAuth() {
+  const token = localStorage.getItem("access_token");
+  const location = useLocation();
+
+  if (!token) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <Outlet />;
+}
+```
+
+## Current user profile
+
+After login, the app calls `GET /v1/auth/me` to fetch the authenticated user's profile and role assignments.
+
+<CodeGroup>
+
+```typescript Response type
+// src/shared/api/auth.ts
+type MeOut = {
+  ok: boolean;
+  user: {
+    usuario_id: number;
+    username: string;
+    email: string | null;
+    is_active: boolean;
+    roles: string[];        // e.g. ["ADMIN"] or ["NOC"]
+  };
+};
+```
+
+```json Example response
+{
+  "ok": true,
+  "user": {
+    "usuario_id": 1,
+    "username": "admin",
+    "email": "admin@example.com",
+    "is_active": true,
+    "roles": ["ADMIN"]
+  }
+}
+```
+
+</CodeGroup>
+
+## Role-based access
+
+ICP System uses three roles. The `roles` array returned by `/v1/auth/me` determines what each user can see and do.
+
+| Role | Access |
+|---|---|
+| `ADMIN` | Full access to all features, including user management (`/usuarios`) |
+| `OPERADOR` | Standard access plus the Excel import feature (`/importacion`) |
+| `NOC` | Read-only access to monitoring and operational views |
+
+Roles are checked at runtime using the `hasRole` helper:
+
+```typescript
+// src/shared/auth/rbac.ts
+export function hasRole(userRoles: string[] | undefined, ...allowed: string[]) {
+  const roles = new Set(userRoles ?? []);
+  return allowed.some((r) => roles.has(r));
+}
+```
+
+Pass the user's `roles` array and one or more allowed role strings. The function returns `true` if the user holds at least one of the allowed roles.
+
+```typescript
+// Example: restrict a UI element to ADMIN only
+if (hasRole(user.roles, "ADMIN")) {
+  // show admin controls
+}
+
+// Example: allow ADMIN or OPERADOR
+if (hasRole(user.roles, "ADMIN", "OPERADOR")) {
+  // show import button
+}
+```
+
+<Info>
+  Role assignment is managed through the backend. See [Users & roles](/admin/users-roles) for instructions on creating accounts and assigning roles via the **Users** page (`/usuarios`).
+</Info>
